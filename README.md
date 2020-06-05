@@ -1,13 +1,20 @@
 # How to Write a Video Player in Less Than 1000 Lines
 
 ## Contents
-This is the copy of 
+Contents of this repo are mirror of 
 ```
 http://dranger.com/ffmpeg/ffmpeg.html
 ```
 
+Start at 
+```
+tutorial01.html
+```
+
 ## Source code
+```
 ffmpegsource.tar.gz
+```
 
 ## Kotlin/Native implementation of this tutorial
 ```
