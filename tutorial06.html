@@ -1,0 +1,265 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial06.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:32 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2><div class="nav">
+<span class="left">Page 
+<a href="tutorial01.html">1</a>
+<a href="tutorial02.html">2</a>
+<a href="tutorial03.html">3</a>
+<a href="tutorial04.html">4</a>
+<a href="tutorial05.html">5</a>
+6
+<a href="tutorial07.html">7</a>
+<a href="end.html">End</a>
+</span>
+<span class="right">
+<a href="tutorial05.html">Prev</a>
+<a href="ffmpeg.html">Home</a>
+<a href="tutorial07.html">Next</a>
+</span>
+<span class="clear">&nbsp;</span>
+</div><div>
+<a href="tutorial06.txt">Text version</a></div>
+<h2>Tutorial 06: Synching Audio</h2>
+<span class="codelink">Code: <a href="tutorial06.c">tutorial06.c</a></span>
+<h3>Synching Audio</h3>
+<p>So now we have a decent enough player to watch a movie, so let's see what kind of loose ends we have lying around. Last time, we glossed over synchronization a little bit, namely sychronizing audio to a video clock rather than the other way around. We're going to do this the same way as with the video: make an internal video clock to keep track of how far along the video thread is and sync the audio to that. Later we'll look at how to generalize things to sync both audio and video to an external clock, too.
+</p>
+<h3>Implementing the video clock</h3>
+<p>
+Now we want to implement a video clock similar to the audio clock we had last time: an internal value that gives the current time offset of the video currently being played. At first, you would think that this would be as simple as updating the timer with the current PTS of the last frame to be shown. However, don't forget that the time between video frames can be pretty long when we get down to the millisecond level. The solution is to keep track of another value, the time at which we set the video clock to the PTS of the last frame. That way the current value of the video clock will be <tt>PTS_of_last_frame + (current_time - time_elapsed_since_PTS_value_was_set)</tt>. This solution is very similar to what we did with <tt>get_audio_clock</tt>.
+</p>
+<p>
+So, in our big struct, we're going to put a <tt>double video_current_pts</tt> and a <tt>int64_t video_current_pts_time</tt>. The clock updating is going to take place in the <tt>video_refresh_timer</tt> function:
+<pre>
+void video_refresh_timer(void *userdata) {
+
+  /* ... */
+
+  if(is-&gt;video_st) {
+    if(is-&gt;pictq_size == 0) {
+      schedule_refresh(is, 1);
+    } else {
+      vp = &is-&gt;pictq[is-&gt;pictq_rindex];
+
+      is-&gt;video_current_pts = vp-&gt;pts;
+      is-&gt;video_current_pts_time = <a href="functions.html#av_gettime">av_gettime</a>();
+</pre>
+Don't forget to initialize it in <tt>stream_component_open</tt>:
+<pre>
+    is-&gt;video_current_pts_time = <a href="functions.html#av_gettime">av_gettime</a>();
+</pre>
+And now all we need is a way to get the information:
+<pre>
+double get_video_clock(VideoState *is) {
+  double delta;
+
+  delta = (<a href="functions.html#av_gettime">av_gettime</a>() - is-&gt;video_current_pts_time) / 1000000.0;
+  return is-&gt;video_current_pts + delta;
+}
+</pre>
+</p>
+<h3>Abstracting the clock</h3>
+<p>
+But why force ourselves to use the video clock? We'd have to go and alter our video sync code so that the audio and video aren't trying to sync to each other. Imagine the mess if we tried to make it a command line option like it is in ffplay. So let's abstract things: we're going to make a new wrapper function, <tt>get_master_clock</tt> that checks an av_sync_type variable and then call <tt>get_audio_clock</tt>, <tt>get_video_clock</tt>, or whatever other clock we want to use. We could even use the computer clock, which we'll call <tt>get_external_clock</tt>:
+<pre>
+enum {
+  AV_SYNC_AUDIO_MASTER,
+  AV_SYNC_VIDEO_MASTER,
+  AV_SYNC_EXTERNAL_MASTER,
+};
+
+#define DEFAULT_AV_SYNC_TYPE AV_SYNC_VIDEO_MASTER
+
+double get_master_clock(VideoState *is) {
+  if(is-&gt;av_sync_type == AV_SYNC_VIDEO_MASTER) {
+    return get_video_clock(is);
+  } else if(is-&gt;av_sync_type == AV_SYNC_AUDIO_MASTER) {
+    return get_audio_clock(is);
+  } else {
+    return get_external_clock(is);
+  }
+}
+main() {
+...
+  is-&gt;av_sync_type = DEFAULT_AV_SYNC_TYPE;
+...
+}
+</pre>
+</p>
+<h3>Synchronizing the Audio</h3>
+<p>Now the hard part: synching the audio to the video clock. Our strategy is going to be to measure where the audio is, compare it to the video clock, and then figure out how many samples we need to adjust by, that is, do we need to speed up by dropping samples or do we need to slow down by adding them? 
+</p>
+We're going to run a <tt>synchronize_audio</tt> function each time we process each set of audio samples we get to shrink or expand them properly. However, we don't want to sync every single time it's off because process audio a lot more often than video packets. So we're going to set a minimum number of consecutive calls to the <tt>synchronize_audio</tt> function that have to be out of sync before we bother doing anything. Of course, just like last time, "out of sync" means that the audio clock and the video clock differ by more than our sync threshold. 
+</p>
+<p>
+<span class="sidenote"><b>Note:</b> What the heck is going on here? This equation looks like magic! Well, it's basically a weighted mean using a geometric series as weights. I don't know if there's a name for this (I even checked Wikipedia!) but for more info, <a href="weightedmean.html">here's an explanation</a> (or at <a href="weightedmean.txt">weightedmean.txt)</a></span> 
+
+So we're going to use a fractional coefficient, say <tt>c</tt>, and
+So now let's say we've gotten N audio sample sets that have been out of sync. The amount we are out of sync can also vary a good deal, so we're going to take an average of how far each of those have been out of sync. So for example, the first call might have shown we were out of sync by 40ms, the next by 50ms, and so on. But we're not going to take a simple average because the most recent values are more important than the previous ones. So we're going to use a fractional coefficient, say <tt>c</tt>, and sum the differences like this: <tt>diff_sum = new_diff + diff_sum*c</tt>. When we are ready to find the average difference, we simply calculate <tt>avg_diff = diff_sum * (1-c)</tt>.
+</p>
+<p>
+Here's what our function looks like so far:
+<pre>
+/* Add or subtract samples to get a better sync, return new
+   audio buffer size */
+int synchronize_audio(VideoState *is, short *samples,
+		      int samples_size, double pts) {
+  int n;
+  double ref_clock;
+  
+  n = 2 * is-&gt;audio_st-&gt;codec-&gt;channels;
+  
+  if(is-&gt;av_sync_type != AV_SYNC_AUDIO_MASTER) {
+    double diff, avg_diff;
+    int wanted_size, min_size, max_size, nb_samples;
+    
+    ref_clock = get_master_clock(is);
+    diff = get_audio_clock(is) - ref_clock;
+
+    if(diff < AV_NOSYNC_THRESHOLD) {
+      // accumulate the diffs
+      is-&gt;audio_diff_cum = diff + is-&gt;audio_diff_avg_coef
+	* is-&gt;audio_diff_cum;
+      if(is-&gt;audio_diff_avg_count < AUDIO_DIFF_AVG_NB) {
+	is-&gt;audio_diff_avg_count++;
+      } else {
+	avg_diff = is-&gt;audio_diff_cum * (1.0 - is-&gt;audio_diff_avg_coef);
+
+       /* Shrinking/expanding buffer code.... */
+
+      }
+    } else {
+      /* difference is TOO big; reset diff stuff */
+      is-&gt;audio_diff_avg_count = 0;
+      is-&gt;audio_diff_cum = 0;
+    }
+  }
+  return samples_size;
+}
+</pre>
+</p>
+<p>
+So we're doing pretty well; we know approximately how off the audio is from the video or whatever we're using for a clock. So let's now calculate how many samples we need to add or lop off by putting this code where the "Shrinking/expanding buffer code" section is:
+<pre>
+if(fabs(avg_diff) >= is-&gt;audio_diff_threshold) {
+  wanted_size = samples_size + 
+  ((int)(diff * is-&gt;audio_st-&gt;codec-&gt;sample_rate) * n);
+  min_size = samples_size * ((100 - SAMPLE_CORRECTION_PERCENT_MAX)
+                             / 100);
+  max_size = samples_size * ((100 + SAMPLE_CORRECTION_PERCENT_MAX) 
+                             / 100);
+  if(wanted_size < min_size) {
+    wanted_size = min_size;
+  } else if (wanted_size > max_size) {
+    wanted_size = max_size;
+  }
+</pre>
+Remember that <tt>audio_length * (sample_rate * # of channels * 2)</tt> is the number of samples in <tt>audio_length</tt> seconds of audio. Therefore, number of samples we want is going to be the number of samples we already have plus or minus the number of samples that correspond to the amount of time the audio has drifted. We'll also set a limit on how big or small our correction can be because if we change our buffer too much, it'll be too jarring to the user. 
+</p>
+<h3>Correcting the number of samples</h3>
+<p>
+Now we have to actually correct the audio. You may have noticed that our <tt>synchronize_audio</tt> function returns a sample size, which will then tell us how many bytes to send to the stream. So we just have to adjust the sample size to the <tt>wanted_size</tt>. This works for making the sample size smaller. But if we want to make it bigger, we can't just make the sample size larger because there's no more data in the buffer! So we have to add it. But what should we add? It would be foolish to try and extrapolate audio, so let's just use the audio we already have by padding out the buffer with the value of the last sample.
+<pre>
+if(wanted_size < samples_size) {
+  /* remove samples */
+  samples_size = wanted_size;
+} else if(wanted_size > samples_size) {
+  uint8_t *samples_end, *q;
+  int nb;
+
+  /* add samples by copying final samples */
+  nb = (samples_size - wanted_size);
+  samples_end = (uint8_t *)samples + samples_size - n;
+  q = samples_end + n;
+  while(nb > 0) {
+    memcpy(q, samples_end, n);
+    q += n;
+    nb -= n;
+  }
+  samples_size = wanted_size;
+}
+</pre>
+Now we return the sample size, and we're done with that function. All we need to do now is use it:
+<pre>
+void audio_callback(void *userdata, Uint8 *stream, int len) {
+
+  VideoState *is = (VideoState *)userdata;
+  int len1, audio_size;
+  double pts;
+
+  while(len > 0) {
+    if(is-&gt;audio_buf_index >= is-&gt;audio_buf_size) {
+      /* We have already sent all our data; get more */
+      audio_size = audio_decode_frame(is, is-&gt;audio_buf, sizeof(is-&gt;audio_buf), &pts);
+      if(audio_size < 0) {
+	/* If error, output silence */
+	is-&gt;audio_buf_size = 1024;
+	memset(is-&gt;audio_buf, 0, is-&gt;audio_buf_size);
+      } else {
+	audio_size = synchronize_audio(is, (int16_t *)is-&gt;audio_buf,
+				       audio_size, pts);
+	is-&gt;audio_buf_size = audio_size;
+</pre>
+All we did is inserted the call to <tt>synchronize_audio</tt>. (Also, make sure to check the source code where we initalize the above variables I didn't bother to define.)
+</p>
+<p>
+One last thing before we finish: we need to add an if clause to make sure we don't sync the video if it is the master clock:
+<pre>
+if(is-&gt;av_sync_type != AV_SYNC_VIDEO_MASTER) {
+  ref_clock = get_master_clock(is);
+  diff = vp-&gt;pts - ref_clock;
+
+  /* Skip or repeat the frame. Take delay into account
+     FFPlay still doesn't "know if this is the best guess." */
+  sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay :
+                    AV_SYNC_THRESHOLD;
+  if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
+    if(diff <= -sync_threshold) {
+      delay = 0;
+    } else if(diff >= sync_threshold) {
+      delay = 2 * delay;
+    }
+  }
+}
+</pre>
+And that does it! Make sure you check through the source file to initialize any variables that I didn't bother defining or initializing. Then compile it:
+<pre>
+gcc -o tutorial06 tutorial06.c -lavutil -lavformat -lavcodec -lswscale -lz -lm \
+`sdl-config --cflags --libs`
+</pre>
+and you'll be good to go.
+</p>
+<p>
+Next time we'll make it so you can rewind and fast forward your movie.
+</p>
+<p>
+<em><b>&gt;&gt;</b> <a href="tutorial07.html">Seeking</a></em>
+</p>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial06.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:36 GMT -->
+</html>

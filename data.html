@@ -1,0 +1,554 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/data.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:43 GMT -->
+<head>
+<title>Data List</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">Data List</h2>
+<div>
+<a href="data.txt">Text version</a></div>
+
+<a name="AVCodecContext">
+<dl class="data">
+<dt><a href="data.html#AVCodecContext">AVCodecContext</a> </dt>
+<dd> 
+All the codec information from a stream, from <a href="data.html#AVStream">AVStream</a>->codec. Some important data members:
+<p>
+<b><a href="data.html#AVRational">AVRational</a> time_base</b>: frames per sec<br />
+<b>int sample_rate</b>: samples per sec<br />
+<b>int channels</b>: number of channels<br />
+</p>
+<p>
+For a full list (this thing is huge), see <a href="http://www.irisa.fr/texmex/people/dufouil/ffmpegdoxy/structAVCodecContext.html">http://www.irisa.fr/texmex/people/dufouil/ffmpegdoxy/structAVCodecContext.html</a> Many of the options are used mostly for encoding rather than decoding.
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVFormatContext">
+<dl class="data">
+<dt><a href="data.html#AVFormatContext">AVFormatContext</a> </dt>
+<dd> 
+Data fields:
+<p>
+<b>const AVClass * 	av_class</b> <br />
+<b>AVInputFormat * 	iformat</b> <br />
+<b>AVOutputFormat * 	oformat</b> <br />
+<b>void * 	priv_data</b>: <br />
+<b>ByteIOContext 	pb</b>: <a href="data.html#ByteIOContext">ByteIOContext</a> of the file, used for the low level file manipulation <br />
+<b>unsigned int 	nb_streams</b>: Number of streams in the file<br />
+<b>AVStream * 	streams [MAX_STREAMS]</b>: Stream data for each stream is stored here.<br />
+<b>char 	filename [1024]</b>: duh<br />
+<br />
+<i>File Information</i><br />
+<b>int64_t 	timestamp</b>: <br />
+<b>char 	title [512]</b>: <br />
+<b>char 	author [512]</b>: <br />
+<b>char 	copyright [512]</b>: <br />
+<b>char 	comment [512]</b>: <br />
+<b>char 	album [512]</b>: <br />
+<b>int 	year</b>: <br />
+<b>int 	track</b>: <br />
+<b>char 	genre [32]</b>: <br />
+<br />
+<b>int 	ctx_flags</b>: <br />
+Any of AVFMT_NOFILE, AVFMT_NEEDNUMBER, AVFMT_SHOW_IDS,
+AVFMT_RAWPICTURE, AVFMT_GLOBALHEADER, AVFMT_NOTIMESTAMPS,
+AVFMT_GENERIC_INDEX
+<b>AVPacketList * 	packet_buffer</b>: This buffer is only needed when packets were already buffered but not decoded, for example to get the codec parameters in mpeg streams<br />
+<b>int64_t 	start_time</b>: decoding: position of the first frame of the component, in AV_TIME_BASE fractional seconds. NEVER set this value directly: it is deduced from the AVStream values.<br />
+<b>int64_t 	duration</b>: decoding: duration of the stream, in AV_TIME_BASE fractional seconds. NEVER set this value directly: it is deduced from the AVStream values.<br />
+<b>int64_t 	file_size</b>: total file size, 0 if unknown<br />
+<b>int 	bit_rate</b>: decoding: total stream bitrate in bit/s, 0 if not available. Never set it directly if the file_size and the duration are known as ffmpeg can compute it automatically.<br />
+<b>AVStream * 	cur_st</b> <br />
+<b>const uint8_t * 	cur_ptr</b> <br />
+<b>int 	cur_len</b> <br />
+<b>AVPacket 	cur_pkt</b>: <br />
+<b>int64_t 	data_offset</b>: <br />
+<b>int 	index_built</b>: offset of the first packet<br />
+<b>int 	mux_rate</b>: <br />
+<b>int 	packet_size</b>: <br />
+<b>int 	preload</b>: <br />
+<b>int 	max_delay</b>: <br />
+<b>int 	loop_output</b>: number of times to loop output in formats that support it<br />
+<b>int 	flags</b>: <br />
+<b>int 	loop_input</b>: <br />
+<b>unsigned int 	probesize</b>: decoding: size of data to probe; encoding unused<br />
+<b>int 	max_analyze_duration</b>: maximum duration in AV_TIME_BASE units over which the input should be analyzed in av_find_stream_info()<br />
+<b>const uint8_t * 	key</b>: <br />
+<b>int 	keylen</b>: <br />
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVIOContext">
+<dl class="data">
+<dt>AVIOContext</dt>
+<dd>
+An IO Context to access resources.
+<p>
+<b>const AVClass * 	av_class</b>
+ 	A class for private options.<br />
+<b>unsigned char * 	buffer</b>
+ 	Start of the buffer.<br />
+<b>int 	buffer_size</b>
+ 	Maximum buffer size.<br />
+ 
+<b>unsigned char * 	buf_ptr</b>
+ 	Current position in the buffer.<br />
+ 
+<b>unsigned char * 	buf_end</b>
+ 	End of the data, may be less than buffer+buffer_size if the read function returned less data than requested, e.g.
+ <br />
+<b>void * 	opaque</b>
+ 	A private pointer, passed to the read/write/seek/...
+ <br />
+<b>int(* 	read_packet )(void *opaque, uint8_t *buf, int buf_size)</b>
+ <br />
+<b>int(* 	write_packet )(void *opaque, uint8_t *buf, int buf_size)</b>
+ <br />
+<b>int64_t(* 	seek )(void *opaque, int64_t offset, int whence)</b>
+ <br />
+<b>int64_t 	pos</b>
+ 	position in the file of the current buffer
+ <br />
+<b>int 	must_flush</b>
+ 	true if the next seek should flush
+ <br />
+<b>int 	eof_reached</b>
+ 	true if eof reached
+ <br />
+<b>int 	write_flag</b>
+ 	true if open for writing
+ <br />
+<b>int 	max_packet_size</b>
+ <br />
+<b>unsigned long 	checksum</b>
+ <br />
+<b>unsigned char * 	checksum_ptr</b>
+ <br />
+<b>unsigned long(* 	update_checksum )(unsigned long checksum, const uint8_t *buf, unsigned int size)</b>
+ <br />
+<b>int 	error</b>
+ 	contains the error code or 0 if no error happened
+ <br />
+<b>int(* 	read_pause )(void *opaque, int pause)</b>
+ 	Pause or resume playback for network streaming protocols - e.g.
+ <br />
+<b>int64_t(* 	read_seek )(void *opaque, int stream_index, int64_t timestamp, int flags)</b>
+ 	Seek to a given timestamp in stream with the specified stream_index.
+ <br />
+<b>int 	seekable</b>
+ 	A combination of AVIO_SEEKABLE_ flags or 0 when the stream is not seekable.
+ <br />
+<b>int64_t 	maxsize</b>
+ 	max filesize, used to limit allocations This field is internal to libavformat and access from outside is not allowed.
+ <br />
+<b>int 	direct</b>
+ 	avio_read and avio_write should if possible be satisfied directly instead of going through a buffer, and avio_seek will always call the underlying seek function directly.
+ <br />
+<b>int64_t 	bytes_read</b>
+ 	Bytes read statistic This field is internal to libavformat and access from outside is not allowed.
+ <br />
+<b>int 	seek_count</b>
+ 	seek statistic This field is internal to libavformat and access from outside is not allowed.
+ <br />
+<b>int 	writeout_count</b>
+ 	writeout statistic This field is internal to libavformat and access from outside is not allowed.
+ <br />
+<b>int 	orig_buffer_size</b>
+ 	Original buffer size used internally after probing and ensure seekback to reset the buffer size This field is internal to libavformat and access from outside is not allowed.
+</p>
+</dd>
+</dl>
+</a>
+
+
+<a name="AVDictionary">
+<dl class="data">
+<dt>AVDictionary</dt>
+<dd> 
+This is used to pass parameters to ffmpeg.
+<p>
+<b>int count</b> <br />
+<b>AVDictionaryEntry *elems</b> <br />
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVDictionaryEntry">
+<dl class="data">
+<dt>AVDictionaryEntry</dt>
+<dd> 
+This is used to hold dictionary entries in AVDictionary.
+<p>
+<b>char *ket</b> <br />
+<b>char *value</b> <br />
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVFrame">
+<dl class="data">
+<dt><a href="data.html#AVFrame">AVFrame</a> </dt>
+<dd> 
+This struct is dependent upon the type of codec, and therefore is dynamically defined. There are common data members for this struct, though:
+<p>
+<b>uint8_t *data[4]</b>: <br />
+<b>int linesize[4]</b>: Stride information<br />
+<b>uint8_t *base[4]</b>: <br />
+<b>int key_frame</b>: <br />
+<b>int pict_type</b>: <br />
+<b>int64_t pts</b>: This is not the pts you want when decoding.<br />
+<b>int coded_picture_number</b>: <br />
+<b>int display_picture_number</b>: <br />
+<b>int quality</b>: <br />
+<b>int age</b>: <br />
+<b>int reference</b>: <br />
+<b>int8_t *qscale_table</b>: <br />
+<b>int qstride</b>: <br />
+<b>uint8_t *mbskip_table</b>: <br />
+<b>int16_t (*motion_val[2])[2]</b>: <br />
+<b>uint32_t *mb_type</b>: <br />
+<b>uint8_t motion_subsample_log2</b>: <br />
+<b>void *opaque</b>: User-defined data<br />
+<b>uint64_t error[4]</b>: <br />
+<b>int type</b>: <br />
+<b>int repeat_pict</b>: Indicates we should repeat this picture this number of times <br />
+<b>int qscale_type</b>: <br />
+<b>int interlaced_frame</b>: <br />
+<b>int top_field_first</b>: <br />
+<b>AVPanScan *pan_scan</b>: <br />
+<b>int palette_has_changed</b>: <br />
+<b>int buffer_hints</b>: <br />
+<b>short *dct_coeff</b>: <br />
+<b>int8_t *ref_index[2]</b>: <br />
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVPacket">
+<dl class="data">
+<dt><a href="data.html#AVPacket">AVPacket</a> </dt>
+<dd>
+The struct in which raw packet data is stored. This data should be given to <a href="functions.html#avcodec_decode_audio2">avcodec_decode_audio2</a> or <a href="functions.html#avcodec_decode_video">avcodec_decode_video</a> to to get a frame.
+<p>
+<b>int64_t 	pts</b>: 	presentation time stamp in time_base units<br />
+<b>int64_t 	dts</b>: 	decompression time stamp in time_base units<br />
+<b>uint8_t * 	data</b>: the raw data<br />
+<b>int 	size</b>: size of data<br />
+<b>int 	stream_index</b>: the stream it came from, based on the number in the AVFormatContext<br />
+<b>int 	flags</b>: set to PKT_FLAG_KEY if packet is a key frame<br />
+<b>int 	duration</b>: 	presentation duration in time_base units (0 if not available)<br />
+<b>void(* 	destruct )(struct AVPacket *)</b>: deallocation function for this packet (defaults to av_destruct_packet) <br />
+<b>void * 	priv</b>:<br />
+<b>int64_t 	pos</b>: 	byte position in stream, -1 if unknown </p>
+ </dd>
+</a>
+</dl>
+
+<a name="AVPacketList">
+<dl class="data">
+<dt><a href="data.html#AVPacketList">AVPacketList</a> </dt>
+<dd>
+A simple linked list for packets.
+<p>
+<b>AVPacket 	pkt</b><br />
+<b>AVPacketList * 	next</b>
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="AVPicture">
+<dl class="data">
+<dt><a href="data.html#AVPicture">AVPicture</a> </dt>
+<dd>
+This struct is the exact same as the first two data members of <a href="data.html#AVFrame">AVFrame</a>, so it is often casted from that. This is usually used in sws functions.
+<p>
+<b>uint8_t * 	data [4]</b><br />
+<b>int 	linesize [4]</b>:
+ 	number of bytes per line 
+</p>
+ </dd>
+</a>
+</dl>
+
+<a name="AVRational">
+<dl class="data">
+<dt><a href="data.html#AVRational">AVRational</a> </dt>
+<dd> 
+Simple struct to represent rational numbers.
+<p>
+<b>int 	num</b>:
+ 	numerator<br />
+<b>int 	den</b>:
+ 	denominator 
+</dd>
+</a>
+</dl>
+
+<a name="AVStream">
+<dl class="data">
+<dt><a href="data.html#AVStream">AVStream</a> </dt>
+<dd>
+Struct for the stream. You will probably use the information in <b>codec</b> most often.
+<p>
+<b>int 	index</b>:<br />
+<b>int 	id</b>:<br />
+<b>AVCodecContext * 	codec</b>:<br />
+<b>AVRational 	r_frame_rate</b>:<br />
+<b>void * 	priv_data</b>:<br />
+<b>int64_t 	codec_info_duration</b>:<br />
+<b>int 	codec_info_nb_frames</b>:<br />
+<b>AVFrac 	pts</b>:<br />
+<b>AVRational 	time_base</b>:<br />
+<b>int 	pts_wrap_bits</b>:<br />
+<b>int 	stream_copy</b>:<br />
+<b>enum AVDiscard 	discard</b>:
+ 	selects which packets can be discarded at will and dont need to be demuxed<br />
+<b>float 	quality</b>:<br />
+<b>int64_t 	start_time</b>:<br />
+<b>int64_t 	duration</b>:<br />
+<b>char 	language [4]</b>:<br />
+<b>int 	need_parsing</b>:
+ 	1->full parsing needed, 2->only parse headers dont repack<br />
+<b>AVCodecParserContext * 	parser</b>:<br />
+<b>int64_t 	cur_dts</b>:<br />
+<b>int 	last_IP_duration</b>:<br />
+<b>int64_t 	last_IP_pts</b>:<br />
+<b>AVIndexEntry * 	index_entries</b>:<br />
+<b>int 	nb_index_entries</b>:<br />
+<b>unsigned int 	index_entries_allocated_size</b>:<br />
+<b>int64_t 	nb_frames</b>:
+ 	number of frames in this stream if known or 0<br />
+<b>int64_t 	pts_buffer [MAX_REORDER_DELAY+1]</b>:<br />
+</p>
+ </dd>
+</a>
+</dl>
+
+<a name="ByteIOContext">
+<dl class="data">
+<dt><a href="data.html#ByteIOContext">ByteIOContext</a> </dt>
+<dd> 
+Struct that stores the low-level file information about our movie file.
+<p>
+<b>unsigned char * 	buffer</b>: <br />
+<b>int 	buffer_size</b>: <br />
+<b>unsigned char * 	buf_ptr</b>: <br />
+<b>unsigned char * 	buf_end</b>: <br />
+<b>void * 	opaque</b>: <br />
+<b>int(* 	read_packet )(void *opaque, uint8_t *buf, int buf_size)</b>: <br />
+<b>int(* 	write_packet )(void *opaque, uint8_t *buf, int buf_size)</b>: <br />
+<b>offset_t(* 	seek )(void *opaque, offset_t offset, int whence)</b>: <br />
+<b>offset_t 	pos</b>: <br />
+<b>int 	must_flush</b>: <br />
+<b>int 	eof_reached</b>: <br />
+<b>int 	write_flag</b>: <br />
+<b>int 	is_streamed</b>: <br />
+<b>int 	max_packet_size</b>: <br />
+<b>unsigned long 	checksum</b>: <br />
+<b>unsigned char * 	checksum_ptr</b>: <br />
+<b>unsigned long(* 	update_checksum )(unsigned long checksum,</b>: <br /> <b>const uint8_t *buf, unsigned int size)</b>: <br />
+<b>int 	error</b>:
+ 	contains the error code or 0 if no error happened <br />
+</p>
+
+</dd>
+</a>
+</dl>
+
+<a name="SDL_AudioSpec">
+<dl class="data">
+<dt><a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> </dt>
+<dd> 
+The <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> structure is used to describe the format of some audio data. Data members:
+<p>
+<b>freq</b>: Audio frequency in samples per second<br />
+<b>format</b>: Audio data format<br />
+<b>channels</b>: Number of channels: 1 mono, 2 stereo, 4 surround, 6 surround with center and lfe<br />
+<b>silence</b>: Audio buffer silence value (calculated)<br />
+<b>samples</b>: Audio buffer size in samples<br />
+<b>size</b>: Audio buffer size in bytes (calculated)<br />
+<b>callback(..)</b>: Callback function for filling the audio buffer<br />
+<b>userdata</b>: Pointer the user data which is passed to the callback function
+</p>
+<p>The following <b>format</b> values are acceptable:<br />
+AUDIO_U8 Unsigned 8-bit samples.<br />
+AUDIO_S8 Signed 8-bit samples.<br />
+AUDIO_U16 or AUDIO_U16LSB not supported by all hardware (unsigned 16-bit little-endian)<br />
+AUDIO_S16 or AUDIO_S16LSBnot supported by all hardware (signed 16-bit little-endian)<br />
+AUDIO_U16MSB not supported by all hardware (unsigned 16-bit big-endian)<br />
+AUDIO_S16MSBnot supported by all hardware (signed 16-bit big-endian)<br />
+AUDIO_U16SYS Either AUDIO_U16LSB or AUDIO_U16MSB depending on hardware CPU endianness<br />
+AUDIO_S16SYS Either AUDIO_S16LSB or AUDIO_S16MSB depending on hardware CPU endianness<br />
+</p>
+</dd>
+</a>
+</dl>
+
+<a name="SDL_Event">
+<dl class="data">
+<dt><a href="data.html#SDL_Event">SDL_Event</a> </dt>
+<dd>
+General event structure. Data members:
+<p>
+
+<b>type</b>: The type of event<br />
+<b>active</b>:	Activation event (see SDL_ActiveEvent)<br />
+<b>key</b>: Keyboard event (see SDL_KeyboardEvent)<br />
+<b>motion</b>: Mouse motion event (see SDL_MouseMotionEvent)<br />
+<b>button</b>: Mouse button event (see SDL_MouseButtonEvent)<br />
+<b>jaxis</b>:  Joystick axis motion event (see SDL_JoyAxisEvent)<br />
+<b>jball</b>:  Joystick trackball motion event (see SDL_JoyBallEvent)<br />
+<b>jhat</b>:   Joystick hat motion event (see SDL_JoyHatEvent)<br />
+<b>jbutton</b>:	Joystick button event (see SDL_JoyButtonEvent)<br />
+<b>resize</b>:	Application window resize event (see SDL_ResizeEvent)<br />
+<b>expose</b>:	Application window expose event (see SDL_ExposeEvent)<br />
+<b>quit</b>: Application quit request event (see SDL_QuitEvent)<br />
+<b>user</b>: User defined event (see SDL_UserEvent)<br />
+<b>syswm</b>: Undefined window manager event (see SDL_SysWMEvent)<br />
+</p>
+<p>
+Here are the event types. See the <a href="http://www.libsdl.org/cgi/docwiki.cgi/SDL_5fEvent">SDL documentation</a> for more info:<br /><br />
+SDL_ACTIVEEVENT	SDL_ActiveEvent<br />
+SDL_KEYDOWN/UP	SDL_KeyboardEvent<br />
+SDL_MOUSEMOTION	SDL_MouseMotionEvent<br />
+SDL_MOUSEBUTTONDOWN/UP SDL_MouseButtonEvent<br />
+SDL_JOYAXISMOTION SDL_JoyAxisEvent<br />
+SDL_JOYBALLMOTION SDL_JoyBallEvent<br />
+SDL_JOYHATMOTION  SDL_JoyHatEvent<br />
+SDL_JOYBUTTONDOWN/UP SDL_JoyButtonEvent<br />
+SDL_VIDEORESIZE	SDL_ResizeEvent<br />
+SDL_VIDEOEXPOSE	SDL_ExposeEvent<br />
+SDL_QUIT SDL_QuitEvent<br />
+SDL_USEREVENT SDL_UserEvent<br />
+SDL_SYSWMEVENT SDL_SysWMEvent<br />
+ </dd>
+</a>
+</dl>
+
+<a name="SDL_Overlay">
+<dl class="data">
+<dt><a href="data.html#SDL_Overlay">SDL_Overlay</a> </dt>
+<dd>A YUV Overlay. Data members:
+<p>
+<b>format</b>: Overlay format (see below)<br />
+<b>w, h</b>: Width and height of overlay<br />
+<b>planes</b>: Number of planes in the overlay. Usually either 1 or 3<br />
+<b>pitches</b>:	An array of pitches, one for each plane. Pitch is the length of a row in bytes.<br />
+<b>pixels</b>: An array of pointers to the data of each plane. The overlay be locked before these pointers are used.<br />
+<b>hw_overlay</b>: This will be set to 1 if the overlay is hardware accelerated.<br />
+</b>
+</dd>
+</a>
+</dl>
+
+<a name="SDL_Rect">
+<dl class="data">
+<dt><a href="data.html#SDL_Rect">SDL_Rect</a> </dt>
+<dd>
+Defines a rectangular area.
+<p>
+<b>Sint16 x, y</b>
+<b>Uint16 w, h</b>
+</p>
+<p>
+<i>x, y</i>: Position of the upper-left corner of the rectangle
+<i>w, h</i>: The width and height of the rectangle
+</p>
+<p>A SDL_Rect defines a rectangular area of pixels. It is used by SDL_BlitSurface to define blitting regions and by several other video functions.
+</p>
+ </dd>
+</a>
+</dl>
+
+<a name="SDL_Surface">
+<dl class="data">
+<dt><a href="data.html#SDL_Surface">SDL_Surface</a> </dt>
+<dd>
+Graphical Surface Structure
+<p>
+<b>Uint32 flags</b> (Read-only): Surface flags<br />
+<b>SDL_PixelFormat *format</b> (Read-only)<br />
+<b>int w, h</b> (Read-only): Width and height<br />
+<b>Uint16 pitch</b> (Read-only): stride<br />
+<b>void *pixels</b> (Read-write): pointer to actual pixel data<br />
+<b>SDL_Rect clip_rect</b> (Read-only): Surface clip rectangle<br />
+<b>int refcount</b> (Read-mostly): used for mem allocation<br />
+This structure also contains private fields not shown here.
+</p>
+<p>
+An SDL_Surface represents an area of "graphical" memory, memory that can be drawn to. The video framebuffer is returned as a SDL_Surface by SDL_SetVideoMode and SDL_GetVideoSurface. The <b>w</b> and <b>h</b> fields are values representing the width and height of the surface in pixels. The <b>pixels</b> field is a pointer to the actual pixel data. Note: the surface should be locked (via SDL_LockSurface) before accessing this field. The <b>clip_rect</b> field is the clipping rectangle as set by SDL_SetClipRect.
+</p>
+<p>
+The flags field supports the following OR-ed values:<br />
+SDL_SWSURFACE 	Surface is stored in system memory<br />
+SDL_HWSURFACE 	Surface is stored in video memory<br />
+SDL_ASYNCBLIT 	Surface uses asynchronous blits if possible<br />
+SDL_ANYFORMAT 	Allows any pixel-format (Display surface)<br />
+SDL_HWPALETTE 	Surface has exclusive palette<br />
+SDL_DOUBLEBUF 	Surface is double buffered (Display surface)<br />
+SDL_FULLSCREEN 	Surface is full screen (Display Surface)<br />
+SDL_OPENGL 	Surface has an OpenGL context (Display Surface)<br />
+SDL_OPENGLBLIT 	Surface supports OpenGL blitting (Display Surface). NOTE: This option is kept for compatibility only, and is not recommended for new code.<br />
+SDL_RESIZABLE 	Surface is resizable (Display Surface)<br />
+SDL_HWACCEL 	Surface blit uses hardware acceleration<br />
+SDL_SRCCOLORKEY 	Surface use colorkey blitting<br />
+SDL_RLEACCEL 	Colorkey blitting is accelerated with RLE<br />
+SDL_SRCALPHA 	Surface blit uses alpha blending<br />
+SDL_PREALLOC 	Surface uses preallocated memory<br />
+<p>
+ </dd>
+</a>
+</dl>
+
+<a name="SDL_Thread">
+<dl class="data">
+<dt><a href="data.html#SDL_Thread">SDL_Thread</a> </dt>
+<dd>
+This struct is is system independent and you probably don't have to use it. For more info, see src/thread/sdl_thread_c.h in the source code.
+ </dd>
+</a>
+</dl>
+
+<a name="SDL_cond">
+<dl class="data">
+<dt><a href="data.html#SDL_cond">SDL_cond</a> </dt>
+<dd> This struct is is system independent and you probably don't have to use it. For more info, see src/thread/&lt;system&rt;/SDL_syscond.c in the source code.</dd>
+</a>
+</dl>
+
+<a name="SDL_mutex">
+<dl class="data">
+<dt><a href="data.html#SDL_mutex">SDL_mutex</a> </dt>
+<dd>This struct is is system independent and you probably don't have to use it. For more info, see src/thread/&lt;system&rt;/SDL_sysmutex.c in the source code. </dd>
+</a>
+</dl>
+
+<hr />
+
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/data.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:45 GMT -->
+</html>

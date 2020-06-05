@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial07.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:36 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2><div class="nav">
+<span class="left">Page 
+<a href="tutorial01.html">1</a>
+<a href="tutorial02.html">2</a>
+<a href="tutorial03.html">3</a>
+<a href="tutorial04.html">4</a>
+<a href="tutorial05.html">5</a>
+<a href="tutorial06.html">6</a>
+7
+<a href="end.html">End</a>
+</span>
+<span class="right">
+<a href="tutorial06.html">Prev</a>
+<a href="ffmpeg.html">Home</a>
+<a href="end.html">Next</a>
+</span>
+<span class="clear">&nbsp;</span>
+</div><div>
+<a href="tutorial07.txt">Text version</a></div>
+<h2>Tutorial 07: Seeking</h2>
+<span class="codelink">
+Code: <a href="tutorial07.c">tutorial07.c</a>
+</span>
+<h3>Handling the seek command</h3>
+<p>
+Now we're going to add some seeking capabilities to our player, because it's really annoying when you can't rewind a movie. Plus, this will show you how easy the <tt><a href="functions.html#av_seek_frame">av_seek_frame</a></tt> function is to use.
+</p>
+<p>
+We're going to make the left and right arrows go back and forth in the movie by a little and the up and down arrows a lot, where "a little" is 10 seconds, and "a lot" is 60 seconds. So we need to set up our main loop so it catches the keystrokes. However, when we do get a keystroke, we can't call <tt><a href="functions.html#av_seek_frame">av_seek_frame</a></tt> directly. We have to do that in our main decode loop, the <tt>decode_thread</tt> loop. So instead, we're going to add some values to the big struct that will contain the new position to seek to and some seeking flags:
+<pre>
+  int             seek_req;
+  int             seek_flags;
+  int64_t         seek_pos;
+</pre>
+</p>
+<p>
+Now we need to set up our main loop to catch the key presses:
+<pre>
+  for(;;) {
+    double incr, pos;
+
+    <a href="functions.html#SDL_WaitEvent">SDL_WaitEvent</a>(&event);
+    switch(event.type) {
+    case SDL_KEYDOWN:
+      switch(event.key.keysym.sym) {
+      case SDLK_LEFT:
+	incr = -10.0;
+	goto do_seek;
+      case SDLK_RIGHT:
+	incr = 10.0;
+	goto do_seek;
+      case SDLK_UP:
+	incr = 60.0;
+	goto do_seek;
+      case SDLK_DOWN:
+	incr = -60.0;
+	goto do_seek;
+      do_seek:
+	if(global_video_state) {
+	  pos = get_master_clock(global_video_state);
+	  pos += incr;
+	  stream_seek(global_video_state, 
+                      (int64_t)(pos * AV_TIME_BASE), incr);
+	}
+	break;
+      default:
+	break;
+      }
+      break;
+</pre>
+To detect keypresses, we first look and see if we get an <tt>SDL_KEYDOWN</tt> event. Then we check and see which key got hit using <tt>event.key.keysym.sym</tt>. Once we know which way we want to seek, we calculate the new time by adding the increment to the value from our new <tt>get_master_clock</tt> function. Then we call a <tt>stream_seek</tt> function to set the seek_pos, etc., values. We convert our new time to avcodec's internal timestamp unit. Recall that timestamps in streams are measured in frames rather than seconds, with the formula <tt>seconds = frames * time_base  (fps)</tt>. avcodec defaults to a value of 1,000,000 fps (so a <tt>pos</tt> of 2 seconds will be timestamp of 2000000). We'll see why we need to convert this value later.
+</p>
+<p>
+Here's our <tt>stream_seek</tt> function. Notice we set a flag if we are going backwards:
+<pre>
+void stream_seek(VideoState *is, int64_t pos, int rel) {
+
+  if(!is-&gt;seek_req) {
+    is-&gt;seek_pos = pos;
+    is-&gt;seek_flags = rel < 0 ? AVSEEK_FLAG_BACKWARD : 0;
+    is-&gt;seek_req = 1;
+  }
+}
+</pre>
+Now let's go over to our <tt>decode_thread</tt> where we will actually perform our seek. You'll notice in the source files that we've marked an area "seek stuff goes here". Well, we're going to put it there now. </p>
+<p>
+Seeking centers around the <tt><a href="functions.html#av_seek_frame">av_seek_frame</a></tt> function. This function takes a format context, a stream, a timestamp, and a set of flags as an argument. The function will seek to the timestamp you give it. The unit of the timestamp is the <tt>time_base</tt> of the stream you pass the function. <i>However</i>, you do not have to pass it a stream (indicated by passing a value of -1). If you do that, the <tt>time_base</tt> will be in avcodec's internal timestamp unit, or 1000000fps. This is why we multiplied our position by <tt>AV_TIME_BASE</tt> when we set <tt>seek_pos</tt>. 
+</p>
+<p>
+However, sometimes you can (rarely) run into problems with some files if you pass <tt><a href="functions.html#av_seek_frame">av_seek_frame</a></tt> -1 for a stream, so we're going to pick the first stream in our file and pass it to <tt>av_seek_frame</tt>. Don't forget we have to rescale our timestamp to be in the new unit too.
+<pre>
+if(is-&gt;seek_req) {
+  int stream_index= -1;
+  int64_t seek_target = is-&gt;seek_pos;
+
+  if     (is-&gt;videoStream >= 0) stream_index = is-&gt;videoStream;
+  else if(is-&gt;audioStream >= 0) stream_index = is-&gt;audioStream;
+
+  if(stream_index>=0){
+    seek_target= <a href="functions.html#av_rescale_q">av_rescale_q</a>(seek_target, AV_TIME_BASE_Q,
+                      pFormatCtx-&gt;streams[stream_index]-&gt;time_base);
+  }
+  if(<a href="functions.html#av_seek_frame">av_seek_frame</a>(is-&gt;pFormatCtx, stream_index, 
+                    seek_target, is-&gt;seek_flags) < 0) {
+    fprintf(stderr, "%s: error while seeking\n",
+            is-&gt;pFormatCtx-&gt;filename);
+  } else {
+     /* handle packet queues... more later... */
+
+</pre>
+<tt><a href="functions.html#av_rescale_q">av_rescale_q</a>(a,b,c)</tt> is a function that will rescale a timestamp from one base to another. It basically computes <tt>a*b/c</tt> but this function is required because that calculation could overflow. <tt>AV_TIME_BASE_Q</tt> is the fractional version of <tt>AV_TIME_BASE</tt>. They're quite different: <tt>AV_TIME_BASE * time_in_seconds = avcodec_timestamp</tt> and <tt>AV_TIME_BASE_Q * avcodec_timestamp = time_in_seconds</tt> (but note that <tt>AV_TIME_BASE_Q</tt> is actually an <tt><a href="data.html#AVRational">AVRational</a></tt> object, so you have to use special q functions in avcodec to handle it).
+</p>
+<h3>Flushing our buffers</h3>
+<p>
+So we've set our seek correctly, but we aren't finished quite yet. Remember that we have a queue set up to accumulate packets. Now that we're in a different place, we have to flush that queue or the movie ain't gonna seek! Not only that, but avcodec has its own internal buffers that need to be flushed too by each thread.
+</p>
+<p>
+To do this, we need to first write a function to clear our packet queue. Then, we need to have some way of instructing the audio and video thread that they need to flush avcodec's internal buffers. We can do this by putting a special packet on the queue after we flush it, and when they detect that special packet, they'll just flush their buffers.
+</p>
+<p>
+Let's start with the flush function. It's really quite simple, so I'll just show you the code:
+<pre>
+static void packet_queue_flush(PacketQueue *q) {
+  <a href="data.html#AVPacketList">AVPacketList</a> *pkt, *pkt1;
+
+  <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(q-&gt;mutex);
+  for(pkt = q-&gt;first_pkt; pkt != NULL; pkt = pkt1) {
+    pkt1 = pkt-&gt;next;
+    <a href="functions.html#av_free_packet">av_free_packet</a>(&pkt-&gt;pkt);
+    <a href="functions.html#av_freep">av_freep</a>(&pkt);
+  }
+  q-&gt;last_pkt = NULL;
+  q-&gt;first_pkt = NULL;
+  q-&gt;nb_packets = 0;
+  q-&gt;size = 0;
+  <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(q-&gt;mutex);
+}
+</pre>
+</p>
+<p>
+Now that the queue is flushed, let's put on our "flush packet." But first we're going to want to define what that is and create it:
+<pre>
+<a href="data.html#AVPacket">AVPacket</a> flush_pkt;
+
+main() {
+  ...
+  <a href="functions.html#av_init_packet">av_init_packet</a>(&flush_pkt);
+  flush_pkt.data = "FLUSH";
+  ...
+}
+</pre>
+Now we put this packet on the queue:
+<pre>
+  } else {
+    if(is-&gt;audioStream >= 0) {
+      packet_queue_flush(&is-&gt;audioq);
+      packet_queue_put(&is-&gt;audioq, &flush_pkt);
+    }
+    if(is-&gt;videoStream >= 0) {
+      packet_queue_flush(&is-&gt;videoq);
+      packet_queue_put(&is-&gt;videoq, &flush_pkt);
+    }
+  }
+  is-&gt;seek_req = 0;
+}
+</pre>
+(This code snippet also continues the code snippet above for <tt>decode_thread</tt>.) We also need to change <tt>packet_queue_put</tt> so that we don't duplicate the special flush packet:
+<pre>
+int packet_queue_put(PacketQueue *q, <a href="data.html#AVPacket">AVPacket</a> *pkt) {
+
+  <a href="data.html#AVPacketList">AVPacketList</a> *pkt1;
+  if(pkt != &flush_pkt && <a href="functions.html#av_dup_packet">av_dup_packet</a>(pkt) < 0) {
+    return -1;
+  }
+</pre>
+And then in the audio thread and the video thread, we put this call to <tt><a href="functions.html#avcodec_flush_buffers">avcodec_flush_buffers</a></tt> immediately after <tt>packet_queue_get</tt>:
+<pre>
+    if(packet_queue_get(&is-&gt;audioq, pkt, 1) < 0) {
+      return -1;
+    }
+    if(pkt-&gt;data == flush_pkt.data) {
+      <a href="functions.html#avcodec_flush_buffers">avcodec_flush_buffers</a>(is-&gt;audio_st-&gt;codec);
+      continue;
+    }
+</pre>
+The above code snippet is exactly the same for the video thread, with "audio" being replaced by "video".
+</p>
+<p>
+That's it! We're done! Go ahead and compile your player:
+<pre>
+gcc -o tutorial07 tutorial07.c -lavutil -lavformat -lavcodec -lswscale -lz -lm \
+`sdl-config --cflags --libs`
+</pre>
+and enjoy your movie player made in less than 1000 lines of C!
+</p>
+<p>
+Of course, there's a lot of things we glanced over that we could add.
+</p>
+<p>
+<em><b>&gt;&gt;</b> <a href="end.html">What's Left?</a></em>
+</p>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial07.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:38 GMT -->
+</html>

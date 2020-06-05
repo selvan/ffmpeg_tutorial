@@ -1,0 +1,301 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial05.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:30 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2><div class="nav">
+<span class="left">Page 
+<a href="tutorial01.html">1</a>
+<a href="tutorial02.html">2</a>
+<a href="tutorial03.html">3</a>
+<a href="tutorial04.html">4</a>
+5
+<a href="tutorial06.html">6</a>
+<a href="tutorial07.html">7</a>
+<a href="end.html">End</a>
+</span>
+<span class="right">
+<a href="tutorial04.html">Prev</a>
+<a href="ffmpeg.html">Home</a>
+<a href="tutorial06.html">Next</a>
+</span>
+<span class="clear">&nbsp;</span>
+</div><div>
+<a href="tutorial05.txt">Text version</a></div>
+<h2>Tutorial 05: Synching Video</h2>
+<span class="codelink">Code: <a href="tutorial05.c">tutorial05.c</a></span>
+<h2>CAVEAT</h2>
+<p>
+When I first made this tutorial, all of my syncing code was pulled from ffplay.c. Today, it is a totally different program, and improvements in the ffmpeg libraries (and in ffplay.c itself) have caused some strategies to change. While this code still works, it doesn't look good, and there are many more improvements that this tutorial could use.
+<h3>How Video Syncs</h3>
+<p>
+So this whole time, we've had an essentially useless movie player. It plays the video, yeah, and it plays the audio, yeah, but it's not quite yet what we would call a <i>movie</i>. So what do we do?
+</p>
+<h4>PTS and DTS</h4>
+<p>
+Fortunately, both the audio and video streams have the information about how fast and when you are supposed to play them inside of them. Audio streams have a sample rate, and the video streams have a frames per second value. However, if we simply synced the video by just counting frames and multiplying by frame rate, there is a chance that it will go out of sync with the audio. Instead, packets from the stream might have what is called a <b>decoding time stamp (DTS)</b> and a <b>presentation time stamp (PTS)</b>. To understand these two values, you need to know about the way movies are stored. Some formats, like MPEG, use what they call "B" frames (B stands for "bidirectional"). The two other kinds of frames are called "I" frames and "P" frames ("I" for "intra" and "P" for "predicted"). I frames contain a full image. P frames depend upon previous I and P frames and are like diffs or deltas. B frames are the same as P frames, but depend upon information found in frames that are displayed both <i>before</i> and <i>after</i> them! This explains why we might not have a finished frame after we call <tt><a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a></tt>.
+</p>
+<p>
+So let's say we had a movie, and the frames were displayed like: I B B P. Now, we need to know the information in P before we can display either B frame. Because of this, the frames might be stored like this: I P B B. This is why we have a decoding timestamp and a presentation timestamp on each frame. The decoding timestamp tells us when we need to decode something, and the presentation time stamp tells us when we need to display something. So, in this case, our stream might look like this:
+<pre>
+   PTS: 1 4 2 3
+   DTS: 1 2 3 4
+Stream: I P B B
+</pre>
+Generally the PTS and DTS will only differ when the stream we are playing has B frames in it.
+</p>
+<p>
+When we get a packet from <tt><a href="functions.html#av_read_frame">av_read_frame</a>()</tt>, it will contain the PTS and DTS values for the information inside that packet. But what we really want is the PTS of our newly decoded raw frame, so we know when to display it. 
+</p>
+<p>
+Fortunately, FFMpeg supplies us with a "best effort" timestamp, which you can get via, <a href="functions.html#av_frame_get_best_effort_timestamp">av_frame_get_best_effort_timestamp</a>()
+</p>
+<h4>Synching</h4>
+<p>
+Now, while it's all well and good to know when we're supposed to show a particular video frame, but how do we actually do so? Here's the idea: after we show a frame, we figure out when the next frame should be shown. Then we simply set a new timeout to refresh the video again after that amount of time. As you might expect, we check the value of the PTS of the next frame against the system clock to see how long our timeout should be. This approach works, but there are two issues that need to be dealt with.
+</p>
+<p>
+First is the issue of knowing when the next PTS will be. Now, you might think that we can just add the video rate to the current PTS &mdash; and you'd be mostly right. However, some kinds of video call for frames to be repeated. This means that we're supposed to repeat the current frame a certain number of times. This could cause the program to display the next frame too soon. So we need to account for that.
+</p>
+<p>
+The second issue is that as the program stands now, the video and the audio chugging away happily, not bothering to sync at all. We wouldn't have to worry about that if everything worked perfectly. But your computer isn't perfect, and a lot of video files aren't, either. So we have three choices: sync the audio to the video, sync the video to the audio, or sync both to an external clock (like your computer). For now, we're going to sync the video to the audio.
+</p>
+<h3>Coding it: getting the frame PTS</h3>
+<p>
+Now let's get into the code to do all this. We're going to need to add some more members to our big struct, but we'll do this as we need to. First let's look at our video thread. Remember, this is where we pick up the packets that were put on the queue by our decode thread. What we need to do in this part of the code is get the PTS of the frame given to us by <tt><a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a></tt>. The first way we talked about was getting the DTS of the last packet processed, which is pretty easy:
+<pre>
+  double pts;
+
+  for(;;) {
+    if(packet_queue_get(&is-&gt;videoq, packet, 1) < 0) {
+      // means we quit getting packets
+      break;
+    }
+    pts = 0;
+    // Decode video frame
+    len1 = <a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a>(is-&gt;video_st-&gt;codec,
+                                pFrame, &frameFinished, packet);
+    if(packet-&gt;dts != AV_NOPTS_VALUE) {
+      pts = <a href="functions.html#av_frame_get_best_effort_timestamp">av_frame_get_best_effort_timestamp</a>(pFrame);
+    } else {
+      pts = 0;
+    }
+    pts *= <a href="functions.html#av_q2d">av_q2d</a>(is-&gt;video_st-&gt;time_base);
+</pre>
+We set the PTS to 0 if we can't figure out what it is. 
+</p>
+<p>
+Well, that was easy. A technical note: You may have noticed we're using <tt>int64</tt> for the PTS. This is because the PTS is stored as an integer. This value is a timestamp that corresponds to a measurement of time in that stream's time_base unit. For example, if a stream has 24 frames per second, a PTS of 42 is going to indicate that the frame should go where the 42nd frame would be if there we had a frame every 1/24 of a second (certainly not necessarily true). </p>
+<p>
+We can convert this value to seconds by dividing by the framerate. The <tt>time_base</tt> value of the stream is going to be 1/framerate (for fixed-fps content), so to get the PTS in seconds, we multiply by the <tt>time_base</tt>. 
+</p>
+<h3>Coding: Synching and using the PTS</h3>
+<p>
+So now we've got our PTS all set. Now we've got to take care of the two synchronization problems we talked about above. We're going to define a function called <tt>synchronize_video</tt> that will update the PTS to be in sync with everything. This function will also finally deal with cases where we don't get a PTS value for our frame. At the same time we need to keep track of when the next frame is expected so we can set our refresh rate properly. We can accomplish this by using an internal video_clock value which keeps track of how much time has passed according to the video. We add this value to our big struct. 
+<pre>
+typedef struct VideoState {
+  double          video_clock; // pts of last decoded frame / predicted pts of next decoded frame
+</pre>
+Here's the synchronize_video function, which is pretty self-explanatory:
+<pre>
+double synchronize_video(VideoState *is, <a href="data.html#AVFrame">AVFrame</a> *src_frame, double pts) {
+
+  double frame_delay;
+
+  if(pts != 0) {
+    /* if we have pts, set video clock to it */
+    is-&gt;video_clock = pts;
+  } else {
+    /* if we aren't given a pts, set it to the clock */
+    pts = is-&gt;video_clock;
+  }
+  /* update the video clock */
+  frame_delay = <a href="functions.html#av_q2d">av_q2d</a>(is-&gt;video_st-&gt;codec-&gt;time_base);
+  /* if we are repeating a frame, adjust clock accordingly */
+  frame_delay += src_frame-&gt;repeat_pict * (frame_delay * 0.5);
+  is-&gt;video_clock += frame_delay;
+  return pts;
+}
+</pre>
+You'll notice we account for repeated frames in this function, too.
+</p>
+<p>
+Now let's get our proper PTS and queue up the frame using <tt>queue_picture</tt>, adding a new pts argument:
+<pre>
+    // Did we get a video frame?
+    if(frameFinished) {
+      pts = synchronize_video(is, pFrame, pts);
+      if(queue_picture(is, pFrame, pts) < 0) {
+	break;
+      }
+    }
+</pre>
+The only thing that changes about <tt>queue_picture</tt> is that we save that pts value to the VideoPicture structure that we queue up. So we have to add a pts variable to the struct and add a line of code:
+<pre>
+typedef struct VideoPicture {
+  ...
+  double pts;
+}
+int queue_picture(VideoState *is, <a href="data.html#AVFrame">AVFrame</a> *pFrame, double pts) {
+  ... stuff ...
+  if(vp-&gt;bmp) {
+    ... convert picture ...
+    vp-&gt;pts = pts;
+    ... alert queue ...
+  }
+</pre>
+So now we've got pictures lining up onto our picture queue with proper PTS values, so let's take a look at our video refreshing function. You may recall from last time that we just faked it and put a refresh of 80ms. Well, now we're going to find out how to actually figure it out.
+</p>
+<p>
+Our strategy is going to be to predict the time of the next PTS by simply measuring the time between the previous pts and this one. At the same time, we need to sync the video to the audio. We're going to make an <b>audio clock</b>: an internal value thatkeeps track of what position the audio we're playing is at. It's like the digital readout on any mp3 player. Since we're synching the video to the audio, the video thread uses this value to figure out if it's too far ahead or too far behind.
+</p>
+<p>
+We'll get to the implementation later; for now let's assume we have a <tt>get_audio_clock</tt> function that will give us the time on the audio clock. Once we have that value, though, what do we do if the video and audio are out of sync? It would silly to simply try and leap to the correct packet through seeking or something. Instead, we're just going to adjust the value we've calculated for the next refresh: if the PTS is too far behind the audio time, we double our calculated delay. if the PTS is too far ahead of the audio time, we simply refresh as quickly as possible. Now that we have our adjusted refresh time, or <b>delay</b>, we're going to compare that with our computer's clock by keeping a running <tt>frame_timer</tt>. This frame timer will sum up all of our calculated delays while playing the movie. In other words, this frame_timer is <i>what time it should be when we display the next frame.</i> We simply add the new delay to the frame timer, compare it to the time on our computer's clock, and use that value to schedule the next refresh. This might be a bit confusing, so study the code carefully:
+<pre>
+void video_refresh_timer(void *userdata) {
+
+  VideoState *is = (VideoState *)userdata;
+  VideoPicture *vp;
+  double actual_delay, delay, sync_threshold, ref_clock, diff;
+  
+  if(is-&gt;video_st) {
+    if(is-&gt;pictq_size == 0) {
+      schedule_refresh(is, 1);
+    } else {
+      vp = &is-&gt;pictq[is-&gt;pictq_rindex];
+
+      delay = vp-&gt;pts - is-&gt;frame_last_pts; /* the pts from last time */
+      if(delay <= 0 || delay >= 1.0) {
+	/* if incorrect delay, use previous one */
+	delay = is-&gt;frame_last_delay;
+      }
+      /* save for next time */
+      is-&gt;frame_last_delay = delay;
+      is-&gt;frame_last_pts = vp-&gt;pts;
+
+      /* update delay to sync to audio */
+      ref_clock = get_audio_clock(is);
+      diff = vp-&gt;pts - ref_clock;
+
+      /* Skip or repeat the frame. Take delay into account
+	 FFPlay still doesn't "know if this is the best guess." */
+      sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay : AV_SYNC_THRESHOLD;
+      if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
+	if(diff <= -sync_threshold) {
+	  delay = 0;
+	} else if(diff >= sync_threshold) {
+	  delay = 2 * delay;
+	}
+      }
+      is-&gt;frame_timer += delay;
+      /* computer the REAL delay */
+      actual_delay = is-&gt;frame_timer - (<a href="functions.html#av_gettime">av_gettime</a>() / 1000000.0);
+      if(actual_delay < 0.010) {
+	/* Really it should skip the picture instead */
+	actual_delay = 0.010;
+      }
+      schedule_refresh(is, (int)(actual_delay * 1000 + 0.5));
+      /* show the picture! */
+      video_display(is);
+      
+      /* update queue for next picture! */
+      if(++is-&gt;pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
+	is-&gt;pictq_rindex = 0;
+      }
+      <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(is-&gt;pictq_mutex);
+      is-&gt;pictq_size--;
+      <a href="functions.html#SDL_CondSignal">SDL_CondSignal</a>(is-&gt;pictq_cond);
+      <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(is-&gt;pictq_mutex);
+    }
+  } else {
+    schedule_refresh(is, 100);
+  }
+}
+</pre>
+There are a few checks we make: first, we make sure that the delay between the PTS and the previous PTS make sense. If it doesn't we just guess and use the last delay. Next, we make sure we have a synch threshold because things are never going to be perfectly in synch. ffplay uses 0.01 for its value. We also make sure that the synch threshold is never smaller than the gaps in between PTS values. Finally, we make the minimum refresh value 10 milliseconds*.<span class="sidenote"><b>*</b> Really here we should skip the frame, but we're not going to bother.</span>
+</p>
+<p>
+We added a bunch of variables to the big struct so don't forget to check the code. Also, don't forget to initialize the frame timer and the initial previous frame delay in <tt>stream_component_open</tt>:
+<pre>
+    is-&gt;frame_timer = (double)<a href="functions.html#av_gettime">av_gettime</a>() / 1000000.0;
+    is-&gt;frame_last_delay = 40e-3;
+</pre>
+</p>
+<h3>Synching: The Audio Clock</h3>
+<p>
+Now it's time for us to implement the audio clock. We can update the clock time in our <tt>audio_decode_frame</tt> function, which is where we decode the audio. Now, remember that we don't always process a new packet every time we call this function, so there are two places we have to update the clock at. The first place is where we get the new packet: we simply set the audio clock to the packet's PTS. Then if a packet has multiple frames, we keep time the audio play by counting the number of samples and multiplying them by the given samples-per-second rate. So once we have the packet:
+<pre>
+    /* if update, update the audio clock w/pts */
+    if(pkt-&gt;pts != AV_NOPTS_VALUE) {
+      is-&gt;audio_clock = <a href="functions.html#av_q2d">av_q2d</a>(is-&gt;audio_st-&gt;time_base)*pkt-&gt;pts;
+    }
+</pre>
+And once we are processing the packet:
+<pre>
+      /* Keep audio_clock up-to-date */
+      pts = is-&gt;audio_clock;
+      *pts_ptr = pts;
+      n = 2 * is-&gt;audio_st-&gt;codec-&gt;channels;
+      is-&gt;audio_clock += (double)data_size /
+	(double)(n * is-&gt;audio_st-&gt;codec-&gt;sample_rate);
+</pre>
+A few fine details: the template of the function has changed to include <tt>pts_ptr</tt>, so make sure you change that. <tt>pts_ptr</tt> is a pointer we use to inform <tt>audio_callback</tt> the pts of the audio packet. This will be used next time for synchronizing the audio with the video. 
+</p>
+<p>
+Now we can finally implement our <tt>get_audio_clock</tt> function. It's not as simple as getting the <tt>is-&gt;audio_clock</tt> value, thought. Notice that we set the audio PTS every time we process it, but if you look at the <tt>audio_callback</tt> function, it takes time to move all the data from our audio packet into our output buffer. That means that the value in our audio clock could be too far ahead. So we have to check how much we have left to write. Here's the complete code:
+<pre>
+double get_audio_clock(VideoState *is) {
+  double pts;
+  int hw_buf_size, bytes_per_sec, n;
+  
+  pts = is-&gt;audio_clock; /* maintained in the audio thread */
+  hw_buf_size = is-&gt;audio_buf_size - is-&gt;audio_buf_index;
+  bytes_per_sec = 0;
+  n = is-&gt;audio_st-&gt;codec-&gt;channels * 2;
+  if(is-&gt;audio_st) {
+    bytes_per_sec = is-&gt;audio_st-&gt;codec-&gt;sample_rate * n;
+  }
+  if(bytes_per_sec) {
+    pts -= (double)hw_buf_size / bytes_per_sec;
+  }
+  return pts;
+}
+</pre>
+You should be able to tell why this function works by now ;)
+</p>
+<p>
+So that's it! Go ahead and compile it:
+<pre>
+gcc -o tutorial05 tutorial05.c -lavutil -lavformat -lavcodec -lswscale -lz -lm \
+`sdl-config --cflags --libs`
+</pre>
+and <b>finally!</b> you can watch a movie on your own movie player. Next time we'll look at audio synching, and then the tutorial after that we'll talk about seeking.
+</p>
+<p>
+<em><b>>></b> <a href="tutorial06.html">Synching Audio</a></em>
+</p>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial05.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:32 GMT -->
+</html>

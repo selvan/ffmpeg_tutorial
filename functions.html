@@ -1,0 +1,621 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/functions.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:41 GMT -->
+<head>
+<title>Function List</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</title>
+</head>
+<body>
+<h2 class="center">Function List</h2>
+<div>
+<a href="functions.txt">Text version</a></div>
+
+<a name="avformat_open_input">
+<dl class="function">
+<dt>int <b><a href="functions.html#avformat_open_input">avformat_open_input</a></b>(<a href="data.html#AVFormatContext">AVFormatContext</a> **ptr, const char * filename, AVInputFormat *fmt, <a href="data.html#AVDictionary">AVDictionary</a> **options)
+</dt>
+<dd>
+Opens a media file <b>filename</b>, stores the format context in the address pointed to by <b>ptr</b>.
+<p>
+<b>fmt</b> forces file format if not NULL.
+</p>
+<p>
+<b>buf_size</b>: optional buffer size.
+</p>
+<p>
+<b>options</b>: An <a href="data.html#AVDictionary">AVDictionary</a> filled with AVFormatContext and demuxer-private options.
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="avformat_close_input">
+<dl class="function">
+<dt>void <b><a href="functions.html#avformat_close_input">avformat_close_input</a></b>(<a href="data.html#AVFormatContext">AVFormatContext</a> **s)</dt>
+<dd>Closes a media file. It does not close its codecs, however.
+</dd>
+</dl>
+</a>
+
+<a name="avio_open2">
+<dl class="function">
+<dt>int avio_open2 (<a href="data.html#AVIOContext">AVIOContext</a> **s, const char *url, int flags, const AVIOInterruptCB *int_cb, <a href="data.html#AVDictionary">AVDictionary</a> **options)</dt>
+<dd>Creates an IO context to use the resource specified by <b>url</b>.
+<p>
+<b>s</b> is the pointer to the place the AVIOContext will be created. In case of failure the pointed to value is set to NULL.
+<p>
+<b>url</b> is the name of the resource to access.
+</p>
+<p>
+<b>flags</b> flags which control how the resource indicated by url is to be opened.
+</p>
+<p>
+<b>int_cb</b> an interrupt callback to be used at the protocols level.
+</p>
+<p>
+<b>options</b> A dictionary filled with protocol-private options. On return this parameter will be destroyed and replaced with a dict containing options that were not found. May be NULL. 
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="av_dup_packet">
+<dl class="function">
+<dt>int <b><a href="functions.html#av_dup_packet">av_dup_packet</a></b>(<a href="data.html#AVPacket">AVPacket</a> *pkt)</dt>
+<dd>
+This apparently is a hack: if this packet wasn't allocated, we allocate it here. It returns 0 on success or AVERROR_NOMEM on failure.
+</dd>
+</dl>
+</a>
+
+<a name="avformat_find_stream_info">
+<dl class="function">
+<dt>int <b><a href="functions.html#av_find_stream_info">av_find_stream_info</a></b>(<a href="data.html#AVFormatContext">AVFormatContext</a> *s, <a href="data.html#AVDictionary">AVDictionary</a> **options)</dt>
+<dd>This function searches the stream to find information about it that might not have been obvious like frame rate. This is useful for file formats without headers like MPEG. It's recommended that you call this after opening a file. It returns >= 0 on success, AVERROR_* on error.
+</dd>
+</dl>
+</a>
+
+<a name="avcodec_free_frame">
+<dl class="function">
+<dt><a href="data.html#AVFrame">AVFrame</a> *<b><a href="functions.html#avcodec_free_frame">avcodec_free_frame</a></b>() </dt>
+<dd>Old name for <a href="functions.html#av_frame_free">av_frame_free</a>. Changed in lavc 55.28.1.</dd>
+</a>
+
+<a name="av_frame_free">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_frame_free">av_frame_free</a></b> (<a href="data.html#AVFrame">AVFrame</a> **frame)</dt>
+<dd>Free the frame and any dynamically allocated objects in it, e.g. extended_data. If the frame is reference counted, it will be unreferenced first.
+</dd>
+</dl>
+</a>
+
+<a name="av_free">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_free">av_free</a></b>(void *ptr)</dt>
+<dd>Frees memory allocated by <a href="functions.html#av_malloc">av_malloc()</a> or av_realloc(). You are allowed to call this function with ptr == NULL. It is recommended you call <a href="functions.html#av_freep">av_freep()</a> instead.</dd>
+</dl>
+</a>
+
+<a name="av_freep">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_freep">av_freep</a></b>(void *ptr)</dt>
+<dd>Frees memory and sets the pointer to NULL. Uses <a href="functions.html#av_free">av_free</a>() internally.
+</dd>
+</dl>
+</a>
+
+<a name="av_free_packet">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_free_packet">av_free_packet</a></b>(<a href="data.html#AVPacket">AVPacket</a> *pkt)</dt>
+<dd>A wrapper around the packet's destruct method (<b>pkt->destruct</b>). 
+</dd>
+</dl>
+</a>
+
+<a name="av_gettime">
+<dl class="function">
+<dt>int64_t <b><a href="functions.html#av_gettime">av_gettime</a></b>()</dt>
+<dd>Gets the current time in microseconds.</dd>
+</dl>
+</a>
+
+<a name="av_init_packet">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_init_packet">av_init_packet</a></b>(<a href="data.html#AVPacket">AVPacket</a> *pkt)</dt>
+<dd>Initialize optional fields of a packet.
+</dd>
+</dl>
+</a>
+
+<a name="av_malloc">
+<dl class="function">
+<dt>void *<b><a href="functions.html#av_malloc">av_malloc</a></b>(unsigned int size)</dt>
+<dd>Memory allocation of size byte with alignment suitable for all memory accesses (including vectors if available on the CPU). <a href="functions.html#av_malloc">av_malloc</a>(0) must return a non NULL pointer.
+ </dd>
+</dl>
+</a>
+
+<a name="av_mallocz">
+<dl class="function">
+<dt>void *<b><a href="functions.html#av_mallocz">av_mallocz</a></b>(unsigned int size)</dt>
+<dd>Same as <a href="functions.html#av_malloc">av_malloc()</a> but it initializes the memory to zero.
+</dd>
+</dl>
+</a>
+
+<a name="av_q2d">
+<dl class="function">
+<dt>double <b><a href="functions.html#av_q2d">av_q2d</a></b>(<a href="data.html#AVRational">AVRational</a> a)</dt>
+<dd>Converts an <a href="data.html#AVRational">AVRational</a> to a double.</dd>
+</dl>
+</a>
+
+<a name="av_read_frame">
+<dl class="function">
+<dt>int <b><a href="functions.html#av_read_frame">av_read_frame</a></b>(<a href="data.html#AVFormatContext">AVFormatContext</a> *s, <a href="data.html#AVPacket">AVPacket</a> *pkt)</dt>
+<dd>
+<p>
+Return the next frame of a stream. The information is stored as a packet in <b>pkt</b>.
+</p>
+<p>
+The returned packet is valid until the next <a href="functions.html#av_read_frame">av_read_frame</a>() or until <a href="functions.html#av_close_input_file">av_close_input_file</a>() and must be freed with <a href="functions.html#av_free_packet">av_free_packet</a>. For video, the packet contains exactly one frame. For audio, it contains an integer number of frames if each frame has a known fixed size (e.g. PCM or ADPCM data). If the audio frames have a variable size (e.g. MPEG audio), then it contains one frame.
+</p>
+<p>
+pkt-&gt;pts, pkt-&gt;dts and pkt-&gt;duration are always set to correct values in <a href="data.html#AVStream">AVStream</a>.timebase units (and guessed if the format cannot provided them). pkt-&gt;pts can be AV_NOPTS_VALUE if the video format has B frames, so it is better to rely on pkt-&gt;dts if you do not decompress the payload.
+</p>
+<p>
+<b>Returns:</b> 0 if OK, &lt; 0 if error or end of file. 
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="av_register_all">
+<dl class="function">
+<dt>void <b><a href="functions.html#av_register_all">av_register_all</a></b>();</dt>
+<dd>Registers all codecs with the library.</dd>
+</dl>
+</dl>
+</a>
+
+<a name="av_rescale_q">
+<dl class="function">
+<dt>int64_t <b><a href="functions.html#av_rescale_q">av_rescale_q</a></b>(int64_t a, <a href="data.html#AVRational">AVRational</a> bq, AVRational cq)</dt>
+<dd>Returns a * bq / cq.</dd>
+</dl>
+</a>
+
+<a name="av_seek_frame">
+<dl class="function">
+<dt>int <b><a href="functions.html#av_seek_frame">av_seek_frame</a></b>(<a href="data.html#AVFormatContext">AVFormatContext</a> *s, int stream_index, int64_t timestamp, int flags)</dt>
+<dd>Seeks to the key frame at <b>timestamp</b>.
+<p>
+<b>stream_index</b>: If <i>stream_index</i> is -1, a default stream is selected, and timestamp is automatically converted from AV_TIME_BASE units to the stream specific time_base.
+</p>
+<p>
+<b>timestamp</b> is measured in <a href="data.html#AVStream">AVStream</a>.time_base units or if there is no stream specified then in AV_TIME_BASE units.
+</p>
+<p>
+<b>flags</b>: Set options regarding direction and seeking mode.<br />
+AVSEEK_FLAG_ANY: Seek to any frame, not just keyframes<br />
+AVSEEK_FLAG_BACKWARD: Seek backward<br />
+AVSEEK_FLAG_BYTE: Seeking based on position in bytes<br />
+</dd>
+</dl>
+</a>
+
+<a name="avcodec_alloc_frame">
+<dl class="function">
+<dt><a href="data.html#AVFrame">AVFrame</a> *<b><a href="functions.html#avcodec_alloc_frame">avcodec_alloc_frame</a></b>() </dt>
+<dd>Old name for <a href="functions.html#av_frame_alloc">av_frame_alloc</a>. Changed in lavc 55.28.1.</dd>
+</a>
+
+<a name="av_frame_alloc">
+<dl class="function">
+<dt><a href="data.html#AVFrame">AVFrame</a> *<b><a href="functions.html#av_frame_alloc">av_frame_alloc</a></b>() </dt>
+<dd>Allocates an <a href="data.html#AVFrame">AVFrame</a> and initializes it. This can be freed with <a href="functions.html#av_frame_free">av_frame_free</a>(). </dd>
+</dl>
+</a>
+
+<a name="avcodec_decode_audio4">
+<dl class="function">
+<dt>int <b><a href="functions.html#avcodec_decode_audio4">avcodec_decode_audio4</a></b>(<a href="data.html#AVCodecContext">AVCodecContext</a> *avctx, <a href="data.html#AVFrame">AVFrame</a> *frame, int *got_frame_ptr, const <a href="data.html#AVPacket">AVPacket</a> *avpkt)</dt>
+<dd> 
+Decodes an audio frame from <b>avpkt</b> into <b>frame</b>. The <a href="functions.html#avcodec_decode_audio4">avcodec_decode_audio4</a>() function decodes a frame of audio from the AVPacket. To decode it, it makes use of the audiocodec which was coupled with avctx using <a href="functions.html#avcodec_open2">avcodec_open2</a>(). The resulting decoded frame is stored in the given AVFrame. If a frame has been decompressed, it will set got_frame_ptr to 1.
+<p><b>Warning:</b> The input buffer, avpkt->data, must be FF_INPUT_BUFFER_PADDING_SIZE larger than the actual read bytes because some optimized bitstream readers read 32 or 64 bits at once and could read over the end.
+</p>
+<p>
+<b>avctx</b>: The codec context.<br />
+<b>frame</b>: The target frame.<br />
+<b>got_frame_ptr</b>: Target int that will be set if a frame has been decompressed.<br />
+<b>avpkt</b>: The AVPacket containing the audio.<br />
+</p>
+<p><b>Returns</b>: On error a negative value is returned, otherwise the number of bytes consumed from the input AVPacket is returned.
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="avcodec_decode_video2">
+<dl class="function">
+<dt>int <b><a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a></b>(<a href="data.html#AVCodecContext">AVCodecContext</a> *avctx, <a href="data.html#AVFrame">AVFrame</a> *picture, int *frameFinished, const <a href="data.html#AVPacket">AVPacket</a> *avpkt) </dt>
+<dd>
+Decodes a video frame from buf into picture. The <a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a>() function decodes a frame of video from the input buffer buf of size buf_size. To decode it, it makes use of the videocodec which was coupled with avctx using <a href="functions.html#avcodec_open2">avcodec_open2</a>(). The resulting decoded frame is stored in picture.
+<p><b>Warning</b>: The sample alignment and buffer problems that apply to <a href="functions.html#avcodec_decode_audio4">avcodec_decode_audio4</a> apply to this function as well.</p>
+<p>
+<b>avctx</b>: The codec context.<br />
+<b>picture</b>: The <a href="data.html#AVFrame">AVFrame</a> in which the decoded video will be stored.<br />
+<b>frameFinished</b>: Zero if no frame could be decompressed, otherwise it is non-zero.
+<b>avpkt</b>: The input AVPacket containing the input buffer. You can create such packet with <a href="functions.html#av_init_packet">av_init_packet</a>() and by then setting data and size, some decoders might in addition need other fields like flags&amp;AV_PKT_FLAG_KEY. All decoders are designed to use the least fields possible.
+</p>
+<p><b>Returns</b>: On error a negative value is returned, otherwise the number of bytes used or zero if no frame could be decompressed. 
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="av_frame_get_best_effort_timestamp">
+<dl class="function">
+<dt>int64_t av_frame_get_best_effort_timestamp 	(const <a href="data.html">AVFrame</a> *frame) 	</dt>
+<dd>A simple accessor to get the best_effort_timestamp from the AVFrame object.</dd>
+</dl>
+</a>
+
+<a name="avcodec_find_decoder">
+<dl class="function">
+<dt>AVCodec *<b><a href="functions.html#avcodec_find_decoder">avcodec_find_decoder</a></b>(enum CodecID id)</dt>
+<dd>Find the decoder with the CodecID <b>id</b>. Returns NULL on failure. This should be called after getting the desired <a href="data.html#AVCodecContext">AVCodecContext</a> from a stream in <a href="data.html#AVFormatContext">AVFormatContext</a>, using codecCtx-&gt;codec_id.</dd>
+</dl>
+</a>
+
+<a name="avcodec_flush_buffers">
+<dl class="function">
+<dt>void <b><a href="functions.html#avcodec_flush_buffers">avcodec_flush_buffers</a></b>(AVCodecContetx *avctx)</dt>
+<dd>Flush buffers, should be called when seeking or when switching to a different stream. </dd>
+</dl>
+</a>
+
+<a name="avcodec_alloc_context3">
+<dl class="function">
+<dt><a href="data.html#AVCodecContext">AVCodecContext *</a> <b>avcodec_alloc_context3</b> (const AVCodec *codec)	</dt>
+<dd>Allocate an AVCodecContext and set its fields to default values.
+</dd>
+</dl>
+</a>
+
+<a name="avcodec_copy_context">
+<dl class="function">
+<dt>int <b>avcodec_copy_context</b> (AVCodecContext *dest,	const AVCodecContext *src) 	</dt>
+<dd><p>Copy the settings of the source AVCodecContext into the destination AVCodecContext. The resulting destination codec context will be unopened, i.e. you are required to call avcodec_open2() before you can use this AVCodecContext to decode/encode video/audio data.</p>
+<p><b>dest</b> should be initialized with avcodec_alloc_context3(NULL), but otherwise uninitialized.</p>
+</dd>
+</dl>
+</a>
+
+<a name="avcodec_open2">
+<dl class="function">
+<dt>int <b><a href="functions.html#avcodec_open2">avcodec_open2</a></b>(<a href="data.html#AVCodecContext">AVCodecContext</a> *avctx, AVCodec *codec, <a href="data.html#AVDictionary">AVDictionary</a> **options) </dt>
+<dd> Initializes <b>avctx</b> to use the codec given in <b>codec</b>. This should be used after <a href="functions.html#avcodec_find_decoder">avcodec_find_decoder</a>. Returns zero on success, and a negative value on error.</dd>
+</dl>
+</a>
+
+<a name="avpicture_fill">
+<dl class="function">
+<dt>int <b><a href="functions.html#avpicture_fill">avpicture_fill</a></b>(<a href="data.html#AVPicture">AVPicture</a> *picture, uint8_t *ptr, int pix_fmt, int width, int height)</dt>
+<dd>Sets up the struct pointed to by <b>picture</b> with the buffer <b>ptr</b>, pic format <b>pix_fmt</b> and the given width and height. Returns the size of the image data in bytes.</dd>
+</dl>
+</a>
+
+<a name="avpicture_get_size">
+<dl class="function">
+<dt>int <b><a href="functions.html#avpicture_get_size">avpicture_get_size</a></b>(int pix_fmt, int width, int height) </dt>
+<dd>Calculates how many bytes will be required for a picture of the given width, height, and pic format.</dd>
+</dl>
+</a>
+
+<a name="sws_getContext">
+<dl class="function">
+<dt>struct SwsContext* <a href="functions.html#sws_getContext">sws_getContext</a>(int srcW, int srcH, int srcFormat, int dstW, int dstH, int dstFormat, int flags, SwsFilter *srcFilter, SwsFilter *dstFilter, double *param)</dt>
+<dd>Returns an SwsContext to be used in <a href="functions.html#sws_scale">sws_scale</a>.
+<p>
+<b>Params:</b><br />
+<b>srcW, srcH, srcFormat</b>: source width, height, and pix format<br />
+<b>dstW, dstH, dstFormat</b>: destination width, height, and pix format<br />
+<b>flags</b>: Method of scaling to use. Choices are SWS_FAST_BILINEAR, SWS_BILINEAR, SWS_BICUBIC, SWS_X, SWS_POINT, SWS_AREA, SWS_BICUBLIN, SWS_GAUSS, SWS_SINC, SWS_LANCZOS, SWS_SPLINE. Other flags include CPU capability flags: SWS_CPU_CAPS_MMX, SWS_CPU_CAPS_MMX2, SWS_CPU_CAPS_3DNOW, SWS_CPU_CAPS_ALTIVEC. Other flags include (currently not completely implemented) SWS_FULL_CHR_H_INT, SWS_FULL_CHR_H_INP, and SWS_DIRECT_BGR. Finally we have SWS_ACCURATE_RND and perhaps the most useful for beginners, SWS_PRINT_INFO. I have no idea what most of these do. Maybe email me?<br />
+<b>srcFilter, dstFilter</b>: SwsFilter for source and destination. SwsFilter involves chroma/luminsence filtering. A value of NULL sets these to the default.<br />
+<b>param</b>: should be a pointer to an int[2] buffer with coefficients. Not documented. Looks like it's used to alter the default scaling algorithms slightly. A value of NULL sets this to the default. Experts only!
+</dd>
+</dl>
+</a>
+
+<a name="sws_scale">
+<dl class="function">
+<dt>int <b><a href="functions.html#sws_scale">sws_scale</a></b>(SwsContext *c, uint8_t *src, int srcStride[], int srcSliceY, int srcSliceH, uint8_t dst[], int dstStride[] </dt>
+    <a href="functions.html#sws_scale">sws_scale</a>(sws_ctx, pFrame->data, 
+              pFrame->linesize, 0, 
+              is->video_st->codec->height, 
+              pict.data, pict.linesize);
+
+<dd>Scales the data in <b>src</b> according to our settings in our SwsContext <b>c</b>. <b>srcStride</b> and <b>dstStride</b> are the source and destination linesize.</dd>
+</dl>
+</a>
+
+<a name="SDL_AddTimer">
+<dl class="function">
+<dt>SDL_TimerID <a href="functions.html#SDL_AddTimer">SDL_AddTimer</a>(Uint32 interval, SDL_NewTimerCallback callback, void *param)</dt>
+<dd>
+Adds a callback function to be run after the specified number of milliseconds has elapsed. The callback function is passed the current timer interval and the user supplied parameter from the <a href="functions.html#SDL_AddTimer">SDL_AddTimer</a> call and returns the next timer interval. (If the returned value from the callback is the same as the one passed in, the timer continues at the same rate.) If the returned value from the callback is 0, the timer is cancelled.
+<p>
+Another way to cancel a currently-running timer is by calling SDL_RemoveTimer with the timer's ID (which was returned from <a href="functions.html#SDL_AddTimer">SDL_AddTimer</a>).
+</p>
+<p>
+The timer callback function may run in a different thread than your main program, and so shouldn't call any functions from within itself. However, you may always call <a href="functions.html#SDL_PushEvent">SDL_PushEvent</a>.
+</p>
+<p>
+The granularity of the timer is platform-dependent, but you should count on it being at least 10 ms as this is the most common number. This means that if you request a 16 ms timer, your callback will run approximately 20 ms later on an unloaded system. If you wanted to set a flag signaling a frame update at 30 frames per second (every 33 ms), you might set a timer for 30 ms (see example below). If you use this function, you need to pass SDL_INIT_TIMER to <a href="functions.html#SDL_Init">SDL_Init</a>. 
+</p>
+<p>Returns an ID value for the added timer or NULL if there was an error.</p>
+<p>
+Format for <b>callback</b> is: <br />Uint32 callback(Uint32 interval, void *param).
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="SDL_CondSignal">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_CondSignal">SDL_CondSignal</a></b>(<a href="data.html#SDL_cond">SDL_cond</a> *cond)</dt>
+<dd> Restart one of the threads that are waiting on the condition variable, cond. Returns 0 on success of -1 on an error.</dd>
+</dl>
+</a>
+
+<a name="SDL_CondWait">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_CondWait">SDL_CondWait</a></b>(<a href="data.html#SDL_cond">SDL_cond</a> *cond, <a href="data.html#SDL_mutex">SDL_mutex</a> *mut); </dt>
+<dd>Unlock the provided mutex and wait for another thread to call <a href="functions.html#SDL_CondSignal">SDL_CondSignal</a> or SDL_CondBroadcast on the condition variable cond, then re-lock the mutex and return. The mutex must be locked before entering this function. Returns 0 when it is signalled, or -1 on an error.</dd>
+</dl>
+</a>
+
+<a name="SDL_CreateCond">
+<dl class="function">
+<dt><a href="data.html#SDL_cond">SDL_cond</a> *<b><a href="functions.html#SDL_CreateCond">SDL_CreateCond</a></b>(void); </dt>
+<dd>
+Creates a condition variable.
+ </dd>
+</dl>
+</a>
+
+<a name="SDL_CreateThread">
+<dl class="function">
+<dt><a href="data.html#SDL_Thread">SDL_Thread</a> *<b><a href="functions.html#SDL_CreateThread">SDL_CreateThread</a></b>(int (*fn)(void *), void *data);</dt>
+<dd><a href="functions.html#SDL_CreateThread">SDL_CreateThread</a> creates a new thread of execution that shares all of its parent's global memory, signal handlers, file descriptors, etc, and runs the function fn passing it the void pointer data. The thread quits when fn returns. </dd>
+</dl>
+</a>
+
+<a name="SDL_Delay">
+<dl class="function">
+<dt>void <b><a href="functions.html#SDL_Delay">SDL_Delay</a></b>(Uint32 ms);</dt>
+<dd>
+Wait a specified number of milliseconds before returning. <a href="functions.html#SDL_Delay">SDL_Delay</a> will wait at least the specified time, but possible longer due to OS scheduling.
+<p>
+<b>Note</b>: Count on a delay granularity of at least 10 ms. Some platforms have shorter clock ticks but this is the most common. 
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="SDL_CreateYUVOverlay">
+<dl class="function">
+<dt><a href="data.html#SDL_Overlay">SDL_Overlay</a> *<b><a href="functions.html#SDL_CreateYUVOverlay">SDL_CreateYUVOverlay</a></b>(int width, int height, Uint32 format, <a href="data.html#SDL_Surface">SDL_Surface</a> *display);</dt>
+<dd> <a href="functions.html#SDL_CreateYUVOverlay">SDL_CreateYUVOverlay</a> creates a YUV overlay of the specified width, height and format (see <a href="data.html#SDL_Overlay">SDL_Overlay</a> for a list of available formats), for the provided display. A SDL_Overlay structure is returned.
+<p>
+<b>display</b> needs to actually be the surface gotten from <a href="functions.html#SDL_SetVideoMode">SDL_SetVideoMode</a> otherwise this function will segfault.
+</p>
+<p>
+The term 'overlay' is a misnomer since, unless the overlay is created in hardware, the contents for the display surface underneath the area where the overlay is shown will be overwritten when the overlay is displayed.
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="SDL_LockYUVOverlay">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_LockYUVOverlay">SDL_LockYUVOverlay</a></b>(<a href="data.html#SDL_Overlay">SDL_Overlay</a> *overlay)</dt>
+<dd> 
+<a href="functions.html#SDL_LockYUVOverlay">SDL_LockYUVOverlay</a> locks the overlay for direct access to pixel data. Returns 0 on success, or -1 on an error.
+</dd>
+</dl>
+</a>
+
+<a name="SDL_UnlockYUVOverlay">
+<dl class="function">
+<dt>void <b><a href="functions.html#SDL_UnlockYUVOverlay">SDL_UnlockYUVOverlay</a></b>(<a href="data.html#SDL_Overlay">SDL_Overlay</a> *overlay)</dt>
+<dd>
+Unlocks a previously locked overlay. An overlay must be unlocked before it can be displayed.
+</dd>
+</dl>
+</a>
+
+<a name="SDL_DisplayYUVOverlay">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_DisplayYUVOverlay">SDL_DisplayYUVOverlay</a></b>(<a href="data.html#SDL_Overlay">SDL_Overlay</a> *overlay, <a href="data.html#SDL_Rect">SDL_Rect</a> *dstrect) </dt>
+<dd> 
+Blit the overlay to the surface specified when it was created. The <a href="data.html#SDL_Rect">SDL_Rect</a> structure, dstrect, specifies the position and size of the destination. If the dstrect is a larger or smaller than the overlay then the overlay will be scaled, this is optimized for 2x scaling. Returns 0 on success.
+</dd>
+</dl>
+</a>
+
+<a name="SDL_FreeYUVOverlay">
+<dl class="function">
+<dt>void <b><a href="functions.html#SDL_FreeYUVOverlay">SDL_FreeYUVOverlay</a></b>(<a href="data.html#SDL_Overlay">SDL_Overlay</a> *overlay)
+<dd>
+Frees an overlay created by <a href="functions.html#SDL_CreateYUVOverlay">SDL_CreateYUVOverlay</a>.
+</dd>
+</dl>
+</a>
+
+<a name="SDL_Init">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_Init">SDL_Init</a></b>(Uint32 flags);</dt>
+<dd>
+Initializes SDL. This should be called before all other SDL functions. The flags parameter specifies what part(s) of SDL to initialize.
+<p>
+SDL_INIT_TIMER Initializes the timer subsystem.<br />
+SDL_INIT_AUDIO Initializes the audio subsystem.<br />
+SDL_INIT_VIDEO Initializes the video subsystem.<br />
+SDL_INIT_CDROM Initializes the cdrom subsystem.<br />
+SDL_INIT_JOYSTICK Initializes the joystick subsystem.<br />
+SDL_INIT_EVERYTHING Initialize all of the above.<br />
+SDL_INIT_NOPARACHUTE Prevents SDL from catching fatal signals.<br />
+SDL_INIT_EVENTTHREAD Run the event manager in a separate thread.
+</p>
+<p>Returns -1 on an error or 0 on success. You can get extended error message by calling SDL_GetError. Typical cause of this error is using a particular display without having according subsystem support, such as missing mouse driver when using with framebuffer device. In this case you can either compile SDL without mouse device, or set "SDL_NOMOUSE=1" environment variable before running your application.
+</p>
+</dd>
+</dl>
+</a>
+
+<a name="SDL_CreateMutex">
+<dl class="function">
+<dt><a href="data.html#SDL_mutex">SDL_mutex</a> *<b><a href="functions.html#SDL_CreateMutex">SDL_CreateMutex</a></b>(void);</dt>
+<dd>Creates a new, unlocked mutex.</dd>
+</dl>
+</a>
+
+<a name="SDL_LockMutex">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_LockMutex">SDL_LockMutex</a></b>(<a href="data.html#SDL_mutex">SDL_mutex</a> *mutex) </dt>
+<dd>
+<a href="functions.html#SDL_LockMutex">SDL_LockMutex</a> is an alias for <a href="data.html#SDL_mutex">SDL_mutex</a>P. It locks <b>mutex</b>, which was previously created with <a href="functions.html#SDL_CreateMutex">SDL_CreateMutex</a>. If the mutex is already locked by another thread then SDL_mutexP will not return until the thread that locked it unlocks it (with SDL_mutexV). If called repeatedly on a mutex, SDL_mutexV (a.k.a. <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>) must be called equal amount of times to return the mutex to unlocked state. Returns 0 on success, or -1 on an error.
+</dd>
+</dl>
+</a>
+
+<a name="SDL_UnlockMutex">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a></b>(SDL_Mutex *mutex)</dt>
+<dd>Unlocks <b>mutex</b>.</dd>
+</dl>
+</a>
+
+<a name="SDL_OpenAudio">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_OpenAudio">SDL_OpenAudio</a></b>(<a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> *desired, SDL_AudioSpec *obtained) </dt>
+<dd>
+This function opens the audio device with the desired parameters, and returns 0 if successful, placing the actual hardware parameters in the structure pointed to by obtained. If obtained is NULL, the audio data passed to the callback function will be guaranteed to be in the requested format, and will be automatically converted to the hardware audio format if necessary. This function returns -1 if it failed to open the audio device, or couldn't set up the audio thread.
+<p>
+To open the audio device a desired <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> must be created. You must then fill this structure with your desired audio specifications.
+</p>
+<p>
+<b>desired->freq</b>: The desired audio frequency in samples-per-second.<br />
+<b>desired->format</b>: The desired audio format (see <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a>)<br />
+<b>desired->channels</b>: The desired channels (1 for mono, 2 for stereo, 4 for surround, 6 for surround with center and lfe).<br />
+<b>desired->samples</b>: The desired size of the audio buffer in samples. This number should be a power of two, and may be adjusted by the audio driver to a value more suitable for the hardware. Good values seem to range between 512 and 8192 inclusive, depending on the application and CPU speed. Smaller values yield faster response time, but can lead to underflow if the application is doing heavy processing and cannot fill the audio buffer in time. A stereo sample consists of both right and left channels in LR ordering. Note that the number of samples is directly related to time by the following formula: ms = (samples*1000)/freq<br />
+<b>desired->callback</b>: This should be set to a function that will be called when the audio device is ready for more data. It is passed a pointer to the audio buffer, and the length in bytes of the audio buffer. This function usually runs in a separate thread, and so you should protect data structures that it accesses by calling SDL_LockAudio and SDL_UnlockAudio in your code. The callback prototype is <tt>void callback(void *userdata, Uint8 *stream, int len)</tt>. userdata is the pointer stored in the userdata field of the <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a>. stream is a pointer to the audio buffer you want to fill with information and len is the length of the audio buffer in bytes.<br />
+<b>desired->userdata</b>: This pointer is passed as the first parameter to the callback function.
+</p>
+<p>
+<a href="functions.html#SDL_OpenAudio">SDL_OpenAudio</a> reads these fields from the desired <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> structure passed to the function and attempts to find an audio configuration matching your desired. As mentioned above, if the obtained parameter is NULL then SDL with convert from your desired audio settings to the hardware settings as it plays.
+</p>
+<p>
+If obtained is NULL then the desired <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> is your working specification, otherwise the obtained SDL_AudioSpec becomes the working specification and the desired specification can be deleted. The data in the working specification is used when building SDL_AudioCVT's for converting loaded data to the hardware format.
+</p>
+<p>
+<a href="functions.html#SDL_OpenAudio">SDL_OpenAudio</a> calculates the size and silence fields for both the desired and obtained specifications. The size field stores the total size of the audio buffer in bytes, while the silence stores the value used to represent silence in the audio buffer
+</p>
+<p>
+The audio device starts out playing silence when it's opened, and should be enabled for playing by calling <a href="functions.html#SDL_PauseAudio">SDL_PauseAudio</a>(0) when you are ready for your audio callback function to be called. Since the audio driver may modify the requested size of the audio buffer, you should allocate any local mixing buffers after you open the audio device.
+</p> 
+</dd>
+</dl>
+</a>
+
+<a name="SDL_PauseAudio">
+<dl class="function">
+<dt>void <b><a href="functions.html#SDL_PauseAudio">SDL_PauseAudio</a></b>(int pause_on)</dt>
+<dd> 
+This function pauses and unpauses the audio callback processing. It should be called with pause_on=0 after opening the audio device to start playing sound. This is so you can safely initialize data for your callback function after opening the audio device. Silence will be written to the audio device during the pause. 
+</dd>
+</dl>
+</a>
+
+<a name="SDL_PushEvent">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_PushEvent">SDL_PushEvent</a></b>(<a href="data.html#SDL_Event">SDL_Event</a> *event)</dt>
+<dd>
+The event queue can actually be used as a two way communication channel. Not only can events be read from the queue, but the user can also push their own events onto it. event is a pointer to the event structure you wish to push onto the queue. The event is copied into the queue, and the caller may dispose of the memory pointed to after <a href="functions.html#SDL_PushEvent">SDL_PushEvent</a> returns. This function is thread safe, and can be called from other threads safely. Returns 0 on success or -1 if the event couldn't be pushed.
+ </dd>
+</dl>
+</a>
+
+<a name="SDL_WaitEvent">
+<dl class="function">
+<dt>int <b><a href="functions.html#SDL_WaitEvent">SDL_WaitEvent</a></b>(<a href="data.html#SDL_Event">SDL_Event</a> *event)</dt>
+<dd>Waits indefinitely for the next available event, returning 0 if there was an error while waiting for events, 1 otherwise. If event is not NULL, the next event is removed from the queue and stored in that area.  </dd>
+</dl>
+</a>
+
+<a name="SDL_Quit">
+<dl class="function">
+<dt>void <b><a href="functions.html#SDL_Quit">SDL_Quit</a></b>()</dt>
+<dd>
+<a href="functions.html#SDL_Quit">SDL_Quit</a> shuts down all SDL subsystems and frees the resources allocated to them. This should always be called before you exit. 
+ </dd>
+</dl>
+</a>
+
+<a name="SDL_SetVideoMode">
+<dl class="function">
+<dt><a href="data.html#SDL_Surface">SDL_Surface</a> *<b><a href="functions.html#SDL_SetVideoMode">SDL_SetVideoMode</a></b>(int width, int height, int bitsperpixel, Uint32 flags)</dt>
+<dd>
+Set up a video mode with the specified width, height and bitsperpixel. As of SDL 1.2.10, if <b>width</b> and <b>height</b> are both 0, it will use the width and height of the current video mode (or the desktop mode, if no mode has been set). If <b>bitsperpixel</b> is 0, it is treated as the current display bits per pixel. The <b>flags</b> parameter is the same as the flags field of the <a href="data.html#SDL_Surface">SDL_Surface</a> structure. OR'd combinations of the following values are valid:
+<p>
+SDL_SWSURFACE Create the video surface in system memory<br />
+SDL_HWSURFACE Create the video surface in video memory<br />
+SDL_ASYNCBLIT Enables the use of asynchronous updates of the display surface. This will usually slow down blitting on single CPU machines, but may provide a speed increase on SMP systems.<br />
+SDL_ANYFORMAT Normally, if a video surface of the requested bits-per-pixel (bpp) is not available, SDL will emulate one with a shadow surface. Passing SDL_ANYFORMAT prevents this and causes SDL to use the video surface, regardless of its pixel depth. <br />
+SDL_HWPALETTE Give SDL exclusive palette access. Without this flag you may not always get the the colors you request with SDL_SetColors or SDL_SetPalette. <br />
+SDL_DOUBLEBUF Enable hardware double buffering; only valid with SDL_HWSURFACE. Calling SDL_Flip will flip the buffers and update the screen. All drawing will take place on the surface that is not displayed at the moment. If double buffering could not be enabled then SDL_Flip will just perform a SDL_UpdateRect on the entire screen. <br />
+SDL_FULLSCREEN SDL will attempt to use a fullscreen mode. If a hardware resolution change is not possible (for whatever reason), the next higher resolution will be used and the display window centered on a black background. <br />
+SDL_OPENGL Create an OpenGL rendering context. You should have previously set OpenGL video attributes with SDL_GL_SetAttribute. (IMPORTANT: Please see <a href="http://www.libsdl.org/cgi/docwiki.cgi/SDL_5fSetVideoMode">this page for more</a>.) <br />
+SDL_OPENGLBLIT Create an OpenGL rendering context, like above, but allow normal blitting operations. The screen (2D) surface may have an alpha channel, and SDL_UpdateRects must be used for updating changes to the screen surface. NOTE: This option is kept for compatibility only, and will be removed in next versions. Is not recommended for new code. <br />
+SDL_RESIZABLECreate a resizable window. When the window is resized by the user a SDL_VIDEORESIZE event is generated and <a href="functions.html#SDL_SetVideoMode">SDL_SetVideoMode</a> can be called again with the new size. <br />
+SDL_NOFRAME If possible, SDL_NOFRAME causes SDL to create a window with no title bar or frame decoration. Fullscreen modes automatically have this flag set. <br />
+</p>
+<p>
+<i>Note:</i> Whatever flags <a href="functions.html#SDL_SetVideoMode">SDL_SetVideoMode</a> could satisfy are set in the flags member of the returned surface.
+<br />
+<i>Note:</i> A bitsperpixel of 24 uses the packed representation of 3 bytes/pixel. For the more common 4 bytes/pixel mode, use a bitsperpixel of 32. Somewhat oddly, both 15 and 16 will request a 2 bytes/pixel mode, but different pixel formats.
+<br />
+<i>Note:</i> Use SDL_SWSURFACE if you plan on doing per-pixel manipulations, or blit surfaces with alpha channels, and require a high framerate. When you use hardware surfaces (SDL_HWSURFACE), SDL copies the surfaces from video memory to system memory when you lock them, and back when you unlock them. This can cause a major performance hit. (Be aware that you may request a hardware surface, but receive a software surface. Many platforms can only provide a hardware surface when using SDL_FULLSCREEN.) SDL_HWSURFACE is best used when the surfaces you'll be blitting can also be stored in video memory.
+<br />
+<i>Note:</i> If you want to control the position on the screen when creating a windowed surface, you may do so by setting the environment variables "SDL_VIDEO_CENTERED=center" or "SDL_VIDEO_WINDOW_POS=x,y". You can set them via SDL_putenv. 
+</p>
+<p><b>Return Value</b>: The framebuffer surface, or NULL if it fails. The surface returned is freed by <a href="functions.html#SDL_Quit">SDL_Quit</a> and should not be freed by the caller. Note: This rule includes consecutive calls to <a href="functions.html#SDL_SetVideoMode">SDL_SetVideoMode</a> (i.e. resize or rez change) - the pre-existing surface will be released automatically.
+</p>
+ </dd>
+</dl>
+</a>
+
+<hr />
+
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Much of this documentation is based off of FFmpeg, Copyright (c) 2003 Fabrice Bellard, and from the <a href="http://www.libsdl.org/cgi/docwiki.cgi/SDL_20API">SDL Documentation Wiki</a>.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/functions.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:43 GMT -->
+</html>
+

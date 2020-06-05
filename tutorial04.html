@@ -1,0 +1,575 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial04.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:28 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2><div class="nav">
+<span class="left">Page 
+<a href="tutorial01.html">1</a>
+<a href="tutorial02.html">2</a>
+<a href="tutorial03.html">3</a>
+4
+<a href="tutorial05.html">5</a>
+<a href="tutorial06.html">6</a>
+<a href="tutorial07.html">7</a>
+<a href="end.html">End</a>
+</span>
+<span class="right">
+<a href="tutorial03.html">Prev</a>
+<a href="ffmpeg.html">Home</a>
+<a href="tutorial05.html">Next</a>
+</span>
+<span class="clear">&nbsp;</span>
+</div><div>
+<a href="tutorial04.txt">Text version</a></div>
+<h2>Tutorial 04: Spawning Threads</h2>
+<span class="codelink">Code: <a href="tutorial04.c">tutorial04.c</a></span>
+<h3>Overview</h3>
+<p>
+Last time we added audio support by taking advantage of SDL's audio functions. SDL started a thread that made callbacks to a function we defined every time it needed audio. Now we're going to do the same sort of thing with the video display. This makes the code more modular and easier to work with - especially when we want to add syncing. So where do we start?
+</p>
+<p>
+First we notice that our main function is handling an awful lot: it's running through the event loop, reading in packets, and decoding the video. So what we're going to do is split all those apart: we're going to have a thread that will be responsible for decoding the packets; these packets will then be added to the queue and read by the corresponding audio and video threads. The audio thread we have already set up the way we want it; the video thread will be a little more complicated since we have to display the video ourselves. We will add the actual display code to the main loop. But instead of just displaying video every time we loop, we will integrate the video display into the event loop. The idea is to decode the video, save the resulting frame in <i>another</i> queue, then create a custom event (<tt>FF_REFRESH_EVENT</tt>) that we add to the event system, then when our event loop sees this event, it will display the next frame in the queue. Here's a handy ASCII art illustration of what is going on:
+<pre>
+ ________ audio  _______      _____
+|        | pkts |       |    |     | to spkr
+| DECODE |----->| AUDIO |--->| SDL |-->
+|________|      |_______|    |_____|
+    |  video     _______
+    |   pkts    |       |
+    +---------->| VIDEO |
+ ________       |_______|   _______
+|       |          |       |       |
+| EVENT |          +------>| VIDEO | to mon.
+| LOOP  |----------------->| DISP. |-->
+|_______|<---FF_REFRESH----|_______|
+</pre>
+The main purpose of moving controlling the video display via the event loop is that using an <a href="functions.html#SDL_Delay">SDL_Delay</a> thread, we can control exactly when the next video frame shows up on the screen. When we finally sync the video in the next tutorial, it will be a simple matter to add the code that will schedule the next video refresh so the right picture is being shown on the screen at the right time.
+</p>
+<h3>Simplifying Code</h3>
+<p>
+We're also going to clean up the code a bit. We have all this audio and video codec information, and we're going to be adding queues and buffers and who knows what else. All this stuff is for one logical unit, <i>viz.</i> the movie. So we're going to make a large struct that will hold all that information called the <tt>VideoState</tt>.
+<pre>
+typedef struct VideoState {
+
+  <a href="data.html#AVFormatContext">AVFormatContext</a> *pFormatCtx;
+  int             videoStream, audioStream;
+  <a href="data.html#AVStream">AVStream</a>        *audio_st;
+  <a href="data.html#AVCodecContext">AVCodecContext</a>  *audio_ctx;
+  PacketQueue     audioq;
+  uint8_t         audio_buf[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2];
+  unsigned int    audio_buf_size;
+  unsigned int    audio_buf_index;
+  <a href="data.html#AVPacket">AVPacket</a>        audio_pkt;
+  uint8_t         *audio_pkt_data;
+  int             audio_pkt_size;
+  <a href="data.html#AVStream">AVStream</a>        *video_st;
+  <a href="data.html#AVCodecContext">AVCodecContext</a>  *video_ctx;
+  PacketQueue     videoq;
+
+  VideoPicture    pictq[VIDEO_PICTURE_QUEUE_SIZE];
+  int             pictq_size, pictq_rindex, pictq_windex;
+  <a href="data.html#SDL_mutex">SDL_mutex</a>       *pictq_mutex;
+  <a href="data.html#SDL_cond">SDL_cond</a>        *pictq_cond;
+  
+  <a href="data.html#SDL_Thread">SDL_Thread</a>      *parse_tid;
+  <a href="data.html#SDL_Thread">SDL_Thread</a>      *video_tid;
+
+  char            filename[1024];
+  int             quit;
+} VideoState;
+</pre>
+Here we see a glimpse of what we're going to get to. First we see the basic information - the format context and the indices of the audio and video stream, and the corresponding <a href="data.html#AVStream">AVStream</a> objects. Then we can see that we've moved some of those audio buffers into this structure. These (audio_buf, audio_buf_size, etc.) were all for information about audio that was still lying around (or the lack thereof). We've added another queue for the video, and a buffer (which will be used as a queue; we don't need any fancy queueing stuff for this) for the decoded frames (saved as an overlay). The VideoPicture struct is of our own creations (we'll see what's in it when we come to it). We also notice that we've allocated pointers for the two extra threads we will create, and the quit flag and the filename of the movie. 
+</p>
+<p>
+So now we take it all the way back to the main function to see how this changes our program. Let's set up our <tt>VideoState</tt> struct:
+<pre>
+int main(int argc, char *argv[]) {
+
+  <a href="data.html#SDL_Event">SDL_Event</a>       event;
+
+  VideoState      *is;
+
+  is = <a href="functions.html#av_mallocz">av_mallocz</a>(sizeof(VideoState));
+</pre>
+<tt><a href="functions.html#av_mallocz">av_mallocz</a>()</tt> is a nice function that will allocate memory for us and zero it out. 
+</p>
+<p>
+Then we'll initialize our locks for the display buffer (<tt>pictq</tt>), because since the event loop calls our display function - the display function, remember, will be pulling pre-decoded frames from <tt>pictq</tt>. At the same time, our video decoder will be putting information into it - we don't know who will get there first. Hopefully you recognize that this is a classic <b>race condition</b>. So we allocate it now before we start any threads. Let's also copy the filename of our movie into our <tt>VideoState</tt>.
+<pre>
+av_strlcpy(is-&gt;filename, argv[1], sizeof(is-&gt;filename));
+
+is-&gt;pictq_mutex = <a href="functions.html#SDL_CreateMutex">SDL_CreateMutex</a>();
+is-&gt;pictq_cond = <a href="functions.html#SDL_CreateCond">SDL_CreateCond</a>();
+</pre>
+<tt>av_strlcpy</tt> is a function from ffmpeg that does some extra bounds checking beyond strncpy. 
+</p>
+<h3>Our First Thread</h3>
+<p>
+Now let's finally launch our threads and get the real work done:
+<pre>
+schedule_refresh(is, 40);
+
+is-&gt;parse_tid = <a href="functions.html#SDL_CreateThread">SDL_CreateThread</a>(decode_thread, is);
+if(!is-&gt;parse_tid) {
+  <a href="functions.html#av_free">av_free</a>(is);
+  return -1;
+}
+</pre>
+<tt>schedule_refresh</tt> is a function we will define later. What it basically does is tell the system to push a <tt>FF_REFRESH_EVENT</tt> after the specified number of milliseconds. This will in turn call the video refresh function when we see it in the event queue. But for now, let's look at <tt><a href="functions.html#SDL_CreateThread">SDL_CreateThread</a>()</tt>.
+</p>
+<p>
+<tt><a href="functions.html#SDL_CreateThread">SDL_CreateThread</a>()</tt> does just that - it spawns a new thread that has complete access to all the memory of the original process, and starts the thread running on the function we give it. It will also pass that function user-defined data. In this case, we're calling <tt>decode_thread()</tt> and with our <tt>VideoState</tt> struct attached. The first half of the function has nothing new; it simply does the work of opening the file and finding the index of the audio and video streams. The only thing we do different is save the format context in our big struct. After we've found our stream indices, we call another function that we will define, <tt>stream_component_open()</tt>. This is a pretty natural way to split things up, and since we do a lot of similar things to set up the video and audio codec, we reuse some code by making this a function.
+</p>
+<p>
+The <tt>stream_component_open()</tt> function is where we will find our codec decoder, set up our audio options, save important information to our big struct, and launch our audio and video threads. This is where we would also insert other options, such as forcing the codec instead of autodetecting it and so forth. Here it is:
+<pre>
+int stream_component_open(VideoState *is, int stream_index) {
+
+  <a href="data.html#AVFormatContext">AVFormatContext</a> *pFormatCtx = is-&gt;pFormatCtx;
+  <a href="data.html#AVCodecContext">AVCodecContext</a> *codecCtx;
+  AVCodec *codec;
+  <a href="data.html#SDL_AudioSpec">SDL_AudioSpec</a> wanted_spec, spec;
+
+  if(stream_index &lt; 0 || stream_index &gt;= pFormatCtx-&gt;nb_streams) {
+    return -1;
+  }
+
+  codec = <a href="functions.html#avcodec_find_decoder">avcodec_find_decoder</a>(pFormatCtx-&gt;streams[stream_index]-&gt;codec-&gt;codec_id);
+  if(!codec) {
+    fprintf(stderr, "Unsupported codec!\n");
+    return -1;
+  }
+
+  codecCtx = avcodec_alloc_context3(codec);
+  if(avcodec_copy_context(codecCtx, pFormatCtx-&gt;streams[stream_index]-&gt;codec) != 0) {
+    fprintf(stderr, "Couldn't copy codec context");
+    return -1; // Error copying codec context
+  }
+
+
+  if(codecCtx-&gt;codec_type == AVMEDIA_TYPE_AUDIO) {
+    // Set audio settings from codec info
+    wanted_spec.freq = codecCtx-&gt;sample_rate;
+    /* ...etc... */
+    wanted_spec.callback = audio_callback;
+    wanted_spec.userdata = is;
+    
+    if(<a href="functions.html#SDL_OpenAudio">SDL_OpenAudio</a>(&wanted_spec, &spec) &lt; 0) {
+      fprintf(stderr, "SDL_OpenAudio: %s\n", SDL_GetError());
+      return -1;
+    }
+  }
+  if(<a href="functions.html#avcodec_open2">avcodec_open2</a>(codecCtx, codec, NULL) &lt; 0) {
+    fprintf(stderr, "Unsupported codec!\n");
+    return -1;
+  }
+
+  switch(codecCtx-&gt;codec_type) {
+  case AVMEDIA_TYPE_AUDIO:
+    is-&gt;audioStream = stream_index;
+    is-&gt;audio_st = pFormatCtx-&gt;streams[stream_index];
+    is-&gt;audio_ctx = codecCtx;
+    is-&gt;audio_buf_size = 0;
+    is-&gt;audio_buf_index = 0;
+    memset(&is-&gt;audio_pkt, 0, sizeof(is-&gt;audio_pkt));
+    packet_queue_init(&is-&gt;audioq);
+    SDL_PauseAudio(0);
+    break;
+  case AVMEDIA_TYPE_VIDEO:
+    is-&gt;videoStream = stream_index;
+    is-&gt;video_st = pFormatCtx-&gt;streams[stream_index];
+    is-&gt;video_ctx = codecCtx;
+    
+    packet_queue_init(&is-&gt;videoq);
+    is-&gt;video_tid = SDL_CreateThread(video_thread, is);
+    is-&gt;sws_ctx = sws_getContext(is-&gt;video_st-&gt;codec-&gt;width, is-&gt;video_st-&gt;codec-&gt;height,
+				 is-&gt;video_st-&gt;codec-&gt;pix_fmt, is-&gt;video_st-&gt;codec-&gt;width,
+				 is-&gt;video_st-&gt;codec-&gt;height, PIX_FMT_YUV420P,
+				 SWS_BILINEAR, NULL, NULL, NULL
+				 );
+    break;
+  default:
+    break;
+  }
+}
+
+</pre>
+This is pretty much the same as the code we had before, except now it's generalized for audio and video. Notice that instead of aCodecCtx, we've set up our big struct as the userdata for our audio callback. We've also saved the streams themselves as <tt>audio_st</tt> and <tt>video_st</tt>. We also have added our video queue and set it up in the same way we set up our audio queue. Most of the point is to launch the video and audio threads. These bits do it:
+<pre>
+    <a href="functions.html#SDL_PauseAudio">SDL_PauseAudio</a>(0);
+    break;
+
+/* ...... */
+
+    is-&gt;video_tid = <a href="functions.html#SDL_CreateThread">SDL_CreateThread</a>(video_thread, is);
+</pre>
+We remember <tt><a href="functions.html#SDL_PauseAudio">SDL_PauseAudio</a>()</tt> from last time, and <tt><a href="functions.html#SDL_CreateThread">SDL_CreateThread</a>()</tt> is used as in the exact same way as before. We'll get back to our <tt>video_thread()</tt> function.
+</p>
+<p>
+Before that, let's go back to the second half of our <tt>decode_thread()</tt> function. It's basically just a for loop that will read in a packet and put it on the right queue:
+<pre>
+  for(;;) {
+    if(is-&gt;quit) {
+      break;
+    }
+    // seek stuff goes here
+    if(is-&gt;audioq.size > MAX_AUDIOQ_SIZE ||
+       is-&gt;videoq.size > MAX_VIDEOQ_SIZE) {
+      <a href="functions.html#SDL_Delay">SDL_Delay</a>(10);
+      continue;
+    }
+    if(<a href="functions.html#av_read_frame">av_read_frame</a>(is-&gt;pFormatCtx, packet) < 0) {
+      if((is-&gt;pFormatCtx-&gt;pb-&gt;error) == 0) {
+	<a href="functions.html#SDL_Delay">SDL_Delay</a>(100); /* no error; wait for user input */
+	continue;
+      } else {
+	break;
+      }
+    }
+    // Is this a packet from the video stream?
+    if(packet-&gt;stream_index == is-&gt;videoStream) {
+      packet_queue_put(&is-&gt;videoq, packet);
+    } else if(packet-&gt;stream_index == is-&gt;audioStream) {
+      packet_queue_put(&is-&gt;audioq, packet);
+    } else {
+      <a href="functions.html#av_free_packet">av_free_packet</a>(packet);
+    }
+  }
+</pre>
+Nothing really new here, except that we now have a max size for our audio and video queue, and we've added a check for read errors. The format context has a <tt>ByteIOContext</tt> struct inside it called <tt>pb</tt>. <tt>ByteIOContext</tt> is the structure that basically keeps all the low-level file information in it.
+</p>
+<p>
+After our for loop, we have all the code for waiting for the rest of the program to end or informing it that we've ended. This code is instructive because it shows us how we push events - something we'll have to later to display the video.
+<pre>
+  while(!is-&gt;quit) {
+    <a href="functions.html#SDL_Delay">SDL_Delay</a>(100);
+  }
+
+ fail:
+  if(1){
+    <a href="data.html#SDL_Event">SDL_Event</a> event;
+    event.type = FF_QUIT_EVENT;
+    event.user.data1 = is;
+    <a href="functions.html#SDL_PushEvent">SDL_PushEvent</a>(&event);
+  }
+  return 0;
+</pre>
+We get values for user events by using the SDL constant <tt>SDL_USEREVENT</tt>. The first user event should be assigned the value <tt>SDL_USEREVENT</tt>, the next <tt>SDL_USEREVENT + 1</tt>, and so on. <tt>FF_QUIT_EVENT</tt> is defined in our program as <tt>SDL_USEREVENT + 1</tt>. We can also pass user data if we like, too, and here we pass our pointer to the big struct. Finally we call <tt><a href="functions.html#SDL_PushEvent">SDL_PushEvent</a>()</tt>. In our event loop switch, we just put this by the <tt>SDL_QUIT_EVENT</tt> section we had before. We'll see our event loop in more detail; for now, just be assured that when we push the <tt>FF_QUIT_EVENT</tt>, we'll catch it later and raise our <tt>quit</tt> flag.
+</p>
+<h3>Getting the Frame: <tt>video_thread</tt></h3>
+<p>
+After we have our codec prepared, we start our video thread. This thread reads in packets from the video queue, decodes the video into frames, and then calls a <tt>queue_picture</tt> function to put the processed frame onto a picture queue:
+<pre>
+int video_thread(void *arg) {
+  VideoState *is = (VideoState *)arg;
+  <a href="data.html#AVPacket">AVPacket</a> pkt1, *packet = &pkt1;
+  int frameFinished;
+  <a href="data.html#AVFrame">AVFrame</a> *pFrame;
+
+  pFrame = <a href="functions.html#av_frame_alloc">av_frame_alloc</a>();
+
+  for(;;) {
+    if(packet_queue_get(&is-&gt;videoq, packet, 1) < 0) {
+      // means we quit getting packets
+      break;
+    }
+    // Decode video frame
+    <a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a>(is-&gt;video_st-&gt;codec, pFrame, &amp;frameFinished, packet);
+
+    // Did we get a video frame?
+    if(frameFinished) {
+      if(queue_picture(is, pFrame) < 0) {
+	break;
+      }
+    }
+    <a href="functions.html#av_free_packet">av_free_packet</a>(packet);
+  }
+  <a href="functions.html#av_free">av_free</a>(pFrame);
+  return 0;
+}
+</pre>
+Most of this function should be familiar by this point. We've moved our <tt><a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a></tt> function here, just replaced some of the arguments; for example, we have the <a href="data.html#AVStream">AVStream</a> stored in our big struct, so we get our codec from there. We just keep getting packets from our video queue until someone tells us to quit or we encounter an error. 
+</p>
+<h3>Queueing the Frame</h3>
+<p>
+Let's look at the function that stores our decoded frame, <tt>pFrame</tt> in our picture queue. Since our picture queue is an SDL overlay (presumably to allow the video display function to have as little calculation as possible), we need to convert our frame into that. The data we store in the picture queue is a struct of our making:
+<pre>
+typedef struct VideoPicture {
+  <a href="data.html#SDL_Overlay">SDL_Overlay</a> *bmp;
+  int width, height; /* source height & width */
+  int allocated;
+} VideoPicture;
+</pre>
+Our big struct has a buffer of these in it where we can store them. However, we need to allocate the <tt><a href="data.html#SDL_Overlay">SDL_Overlay</a></tt> ourselves (notice the <tt>allocated</tt> flag that will indicate whether we have done so or not).
+</p>
+<p>
+To use this queue, we have two pointers - the writing index and the reading index.  We also keep track of how many actual pictures are in the buffer. To write to the queue, we're going to first wait for our buffer to clear out so we have space to store our <tt>VideoPicture</tt>. Then we check and see if we have already allocated the overlay at our writing index. If not, we'll have to allocate some space. We also have to reallocate the buffer if the size of the window has changed!
+<pre>
+int queue_picture(VideoState *is, <a href="data.html#AVFrame">AVFrame</a> *pFrame) {
+
+  VideoPicture *vp;
+  int dst_pix_fmt;
+  <a href="data.html#AVPicture">AVPicture</a> pict;
+
+  /* wait until we have space for a new pic */
+  <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(is-&gt;pictq_mutex);
+  while(is-&gt;pictq_size >= VIDEO_PICTURE_QUEUE_SIZE &&
+	!is-&gt;quit) {
+    <a href="functions.html#SDL_CondWait">SDL_CondWait</a>(is-&gt;pictq_cond, is-&gt;pictq_mutex);
+  }
+  <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(is-&gt;pictq_mutex);
+
+  if(is-&gt;quit)
+    return -1;
+
+  // windex is set to 0 initially
+  vp = &is-&gt;pictq[is-&gt;pictq_windex];
+
+  /* allocate or resize the buffer! */
+  if(!vp-&gt;bmp ||
+     vp-&gt;width != is-&gt;video_st-&gt;codec-&gt;width ||
+     vp-&gt;height != is-&gt;video_st-&gt;codec-&gt;height) {
+    <a href="data.html#SDL_Event">SDL_Event</a> event;
+
+    vp-&gt;allocated = 0;
+    alloc_picture(is);
+    if(is-&gt;quit) {
+      return -1;
+    }
+  }
+</pre>
+</p>
+<p>
+Let's look at the <tt>alloc_picture()</tt> function:
+<pre>
+void alloc_picture(void *userdata) {
+
+  VideoState *is = (VideoState *)userdata;
+  VideoPicture *vp;
+
+  vp = &is-&gt;pictq[is-&gt;pictq_windex];
+  if(vp-&gt;bmp) {
+    // we already have one make another, bigger/smaller
+    <a href="functions.html#SDL_FreeYUVOverlay">SDL_FreeYUVOverlay</a>(vp-&gt;bmp);
+  }
+  // Allocate a place to put our YUV image on that screen
+  <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(screen_mutex);
+  vp-&gt;bmp = <a href="functions.html#SDL_CreateYUVOverlay">SDL_CreateYUVOverlay</a>(is-&gt;video_st-&gt;codec-&gt;width,
+				 is-&gt;video_st-&gt;codec-&gt;height,
+				 SDL_YV12_OVERLAY,
+				 screen);
+  <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(screen_mutex);
+  vp-&gt;width = is-&gt;video_st-&gt;codec-&gt;width;
+  vp-&gt;height = is-&gt;video_st-&gt;codec-&gt;height;  
+  vp-&gt;allocated = 1;
+}
+</pre>
+You should recognize the <tt><a href="functions.html#SDL_CreateYUVOverlay">SDL_CreateYUVOverlay</a></tt> function that we've moved from our main loop to this section. This code should be fairly self-explanitory by now. However, now we have a mutex lock around it because two threads cannot write information to the screen at the same time! This will prevent our <tt>alloc_picture</tt> function from stepping on the toes of the function that will display the picture. (We've created this lock as a global variable and initialized it in <tt>main()</tt>; see code.) Remember that we save the width and height in the <tt>VideoPicture</tt> structure because we need to make sure that our video size doesn't change for some reason.
+</p>
+<p>
+Okay, we're all settled and we have our YUV overlay allocated and ready to receive a picture. Let's go back to <tt>queue_picture</tt> and look at the code to copy the frame into the overlay. You should recognize that part of it:
+<pre>
+int queue_picture(VideoState *is, <a href="data.html#AVFrame">AVFrame</a> *pFrame) {
+
+  /* Allocate a frame if we need it... */
+  /* ... */
+  /* We have a place to put our picture on the queue */
+
+  if(vp-&gt;bmp) {
+
+    <a href="functions.html#SDL_LockYUVOverlay">SDL_LockYUVOverlay</a>(vp-&gt;bmp);
+    
+    dst_pix_fmt = PIX_FMT_YUV420P;
+    /* point pict at the queue */
+
+    pict.data[0] = vp-&gt;bmp-&gt;pixels[0];
+    pict.data[1] = vp-&gt;bmp-&gt;pixels[2];
+    pict.data[2] = vp-&gt;bmp-&gt;pixels[1];
+    
+    pict.linesize[0] = vp-&gt;bmp-&gt;pitches[0];
+    pict.linesize[1] = vp-&gt;bmp-&gt;pitches[2];
+    pict.linesize[2] = vp-&gt;bmp-&gt;pitches[1];
+    
+    // Convert the image into YUV format that SDL uses
+    <a href="functions.html#sws_scale">sws_scale</a>(is-&gt;sws_ctx, (uint8_t const * const *)pFrame-&gt;data,
+	      pFrame-&gt;linesize, 0, is-&gt;video_st-&gt;codec-&gt;height,
+	      pict.data, pict.linesize);
+    
+    <a href="functions.html#SDL_UnlockYUVOverlay">SDL_UnlockYUVOverlay</a>(vp-&gt;bmp);
+    /* now we inform our display thread that we have a pic ready */
+    if(++is-&gt;pictq_windex == VIDEO_PICTURE_QUEUE_SIZE) {
+      is-&gt;pictq_windex = 0;
+    }
+    <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(is-&gt;pictq_mutex);
+    is-&gt;pictq_size++;
+    <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(is-&gt;pictq_mutex);
+  }
+  return 0;
+}
+</pre>
+The majority of this part is simply the code we used earlier to fill the YUV overlay with our frame. The last bit is simply "adding" our value onto the queue. The queue works by adding onto it until it is full, and reading from it as long as there is something on it. Therefore everything depends upon the <tt>is-&gt;pictq_size</tt> value, requiring us to lock it. So what we do here is increment the write pointer (and rollover if necessary), then lock the queue and increase its size. Now our reader will know there is more information on the queue, and if this makes our queue full, our writer will know about it.
+</p>
+<h3>Displaying the Video</h3>
+<p>
+That's it for our video thread! Now we've wrapped up all the loose threads except for one &mdash; remember that we called the <tt>schedule_refresh()</tt> function way back? Let's see what that actually did:
+<pre>
+/* schedule a video refresh in 'delay' ms */
+static void schedule_refresh(VideoState *is, int delay) {
+  <a href="functions.html#SDL_AddTimer">SDL_AddTimer</a>(delay, sdl_refresh_timer_cb, is);
+}
+</pre>
+<tt><a href="functions.html#SDL_AddTimer">SDL_AddTimer</a>()</tt> is an SDL function that simply makes a callback to the user-specfied function after a certain number of milliseconds (and optionally carrying some user data). We're going to use this function to schedule video updates - every time we call this function, it will set the timer, which will trigger an event, which will have our <tt>main()</tt> function in turn call a function that pulls a frame from our picture queue and displays it! Phew! 
+</p>
+<p>
+But first thing's first. Let's trigger that event. That sends us over to:
+<pre>
+static Uint32 sdl_refresh_timer_cb(Uint32 interval, void *opaque) {
+  <a href="data.html#SDL_Event">SDL_Event</a> event;
+  event.type = FF_REFRESH_EVENT;
+  event.user.data1 = opaque;
+  <a href="functions.html#SDL_PushEvent">SDL_PushEvent</a>(&event);
+  return 0; /* 0 means stop timer */
+}
+</pre>
+Here is the now-familiar event push. <tt>FF_REFRESH_EVENT</tt> is defined here as <tt>SDL_USEREVENT + 1</tt>. One thing to notice is that when we <tt>return 0</tt>, SDL stops the timer so the callback is not made again.
+</p>
+<p>
+Now we've pushed an <tt>FF_REFRESH_EVENT</tt>, we need to handle it in our event loop:
+<pre>
+for(;;) {
+
+  <a href="functions.html#SDL_WaitEvent">SDL_WaitEvent</a>(&event);
+  switch(event.type) {
+  /* ... */
+  case FF_REFRESH_EVENT:
+    video_refresh_timer(event.user.data1);
+    break;
+</pre>
+and <i>that</i> sends us to this function, which will actually pull the data from our picture queue:
+<pre>
+void video_refresh_timer(void *userdata) {
+
+  VideoState *is = (VideoState *)userdata;
+  VideoPicture *vp;
+  
+  if(is-&gt;video_st) {
+    if(is-&gt;pictq_size == 0) {
+      schedule_refresh(is, 1);
+    } else {
+      vp = &is-&gt;pictq[is-&gt;pictq_rindex];
+      /* Timing code goes here */
+
+      schedule_refresh(is, 80);
+      
+      /* show the picture! */
+      video_display(is);
+      
+      /* update queue for next picture! */
+      if(++is-&gt;pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
+	is-&gt;pictq_rindex = 0;
+      }
+      <a href="functions.html#SDL_LockMutex">SDL_LockMutex</a>(is-&gt;pictq_mutex);
+      is-&gt;pictq_size--;
+      <a href="functions.html#SDL_CondSignal">SDL_CondSignal</a>(is-&gt;pictq_cond);
+      <a href="functions.html#SDL_UnlockMutex">SDL_UnlockMutex</a>(is-&gt;pictq_mutex);
+    }
+  } else {
+    schedule_refresh(is, 100);
+  }
+}
+</pre>
+For now, this is a pretty simple function: it pulls from the queue when we have something, sets our timer for when the next video frame should be shown, calls video_display to actually show the video on the screen, then increments the counter on the queue, and decreases its size. You may notice that we don't actually do anything with <tt>vp</tt> in this function, and here's why: we will. Later. We're going to use it to access timing information when we start syncing the video to the audio. See where it says "timing code here"? In that section, we're going to figure out how soon we should show the next video frame, and then input that value into the <tt>schedule_refresh()</tt> function. For now we're just putting in a dummy value of 80. Technically, you could guess and check this value, and recompile it for every movie you watch, but 1) it would drift after a while and 2) it's quite silly. We'll come back to it later, though.
+</p>
+<p>
+We're almost done; we just have one last thing to do: display the video! Here's that <tt>video_display</tt> function:
+<pre>
+
+</p>void video_display(VideoState *is) {
+
+  <a href="data.html#SDL_Rect">SDL_Rect</a> rect;
+  VideoPicture *vp;
+  float aspect_ratio;
+  int w, h, x, y;
+  int i;
+
+  vp = &is-&gt;pictq[is-&gt;pictq_rindex];
+  if(vp-&gt;bmp) {
+    if(is-&gt;video_st-&gt;codec-&gt;sample_aspect_ratio.num == 0) {
+      aspect_ratio = 0;
+    } else {
+      aspect_ratio = <a href="functions.html#av_q2d">av_q2d</a>(is-&gt;video_st-&gt;codec-&gt;sample_aspect_ratio) *
+	is-&gt;video_st-&gt;codec-&gt;width / is-&gt;video_st-&gt;codec-&gt;height;
+    }
+    if(aspect_ratio <= 0.0) {
+      aspect_ratio = (float)is-&gt;video_st-&gt;codec-&gt;width /
+	(float)is-&gt;video_st-&gt;codec-&gt;height;
+    }
+    h = screen-&gt;h;
+    w = ((int)rint(h * aspect_ratio)) & -3;
+    if(w > screen-&gt;w) {
+      w = screen-&gt;w;
+      h = ((int)rint(w / aspect_ratio)) & -3;
+    }
+    x = (screen-&gt;w - w) / 2;
+    y = (screen-&gt;h - h) / 2;
+    
+    rect.x = x;
+    rect.y = y;
+    rect.w = w;
+    rect.h = h;
+    SDL_LockMutex(screen_mutex);
+    <a href="functions.html#SDL_DisplayYUVOverlay">SDL_DisplayYUVOverlay</a>(vp-&gt;bmp, &rect);
+    SDL_UnlockMutex(screen_mutex);
+  }
+}
+</pre>
+Since our screen can be of any size (we set ours to 640x480 and there are ways to set it so it is resizable by the user), we need to dynamically figure out how big we want our movie rectangle to be. So first we need to figure out our movie's <b>aspect ratio</b>, which is just the width divided by the height. Some codecs will have an odd <b>sample aspect ratio</b>, which is simply the width/height radio of a single pixel, or sample. Since the height and width values in our codec context are measured in pixels, the actual aspect ratio is equal to the aspect ratio times the sample aspect ratio. Some codecs will show an aspect ratio of 0, and this indicates that each pixel is simply of size 1x1. Then we scale the movie to fit as big in our <tt>screen</tt> as we can. The <tt>& -3</tt> bit-twiddling in there simply rounds the value to the nearest multiple of 4.  Then we center the movie, and call <tt><a href="functions.html#SDL_DisplayYUVOverlay">SDL_DisplayYUVOverlay</a>()</tt>, making sure we use the screen mutex to access it.
+</p>
+<p>
+So is that it? Are we done? Well, we still have to rewrite the audio code to use the new <tt>VideoStruct</tt>, but those are trivial changes, and you can look at those in the sample code. The last thing we have to do is to change our callback for ffmpeg's internal "quit" callback function:
+<pre>
+VideoState *global_video_state;
+
+int decode_interrupt_cb(void) {
+  return (global_video_state && global_video_state-&gt;quit);
+}
+</pre>
+We set <tt>global_video_state</tt> to the big struct in <tt>main()</tt>. 
+</p>
+<p>
+So that's it! Go ahead and compile it:
+<pre>
+gcc -o tutorial04 tutorial04.c -lavutil -lavformat -lavcodec -lswscale -lz -lm \
+`sdl-config --cflags --libs`
+</pre>
+and enjoy your unsynced movie! Next time we'll finally build a video player that actually works!
+</p>
+<p>
+<em><b>>></b> <a href="tutorial05.html">Syncing Video</a></em>
+</p>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial04.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:30 GMT -->
+</html>

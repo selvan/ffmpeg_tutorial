@@ -1,0 +1,293 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial01.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:11 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2><div class="nav">
+<span class="left">Page 
+1
+<a href="tutorial02.html">2</a>
+<a href="tutorial03.html">3</a>
+<a href="tutorial04.html">4</a>
+<a href="tutorial05.html">5</a>
+<a href="tutorial06.html">6</a>
+<a href="tutorial07.html">7</a>
+<a href="end.html">End</a>
+</span>
+<span class="right">
+<a href="ffmpeg.html">Prev</a>
+<a href="ffmpeg.html">Home</a>
+<a href="tutorial02.html">Next</a>
+</span>
+<span class="clear">&nbsp;</span>
+</div><div>
+<a href="tutorial01.txt">Text version</a></div>
+<h2>Tutorial 01: Making Screencaps</h2>
+<span class="codelink">Code: <a href="tutorial01.c">tutorial01.c</a></span>
+<h3>Overview</h3>
+<p>
+Movie files have a few basic components. First, the file itself is called a <b>container</b>, and the type of container determines where the information in the file goes. Examples of containers are AVI and Quicktime. Next, you have a bunch of <b>streams</b>; for example, you usually have an audio stream and a video stream. (A "stream" is just a fancy word for "a succession of data elements made available over time".) The data elements in a stream are called <b>frames</b>. Each stream is encoded by a different kind of <b>codec</b>. The codec defines how the actual data is COded and DECoded - hence the name CODEC. Examples of codecs are DivX and MP3. <b>Packets</b> are then read from the stream. Packets are pieces of data that can contain bits of data that are decoded into raw frames that we can finally manipulate for our application. For our purposes, each packet contains complete frames, or multiple frames in the case of audio.
+</p>
+<p>
+At its very basic level, dealing with video and audio streams is very easy:
+<pre>
+10 OPEN video_stream FROM video.avi
+20 READ packet FROM video_stream INTO frame
+30 IF frame NOT COMPLETE GOTO 20
+40 DO SOMETHING WITH frame
+50 GOTO 20
+</pre>
+Handling multimedia with ffmpeg is pretty much as simple as this program, although some programs might have a very complex "DO SOMETHING" step. So in this tutorial, we're going to open a file, read from the video stream inside it, and our DO SOMETHING is going to be writing the frame to a PPM file.
+</p>
+<h3>Opening the File</h3>
+<p>
+First, let's see how we open a file in the first place. With ffmpeg, you have to first initialize the library.
+<pre>
+#include &lt;libavcodec/avcodec.h&gt;
+#include &lt;libavformat/avformat.h&gt;
+#include &lt;ffmpeg/swscale.h&gt;
+...
+int main(int argc, charg *argv[]) {
+<a href="functions.html#av_register_all">av_register_all</a>();
+</pre>
+This registers all available file formats and codecs with the library so they will be used automatically when a file with the corresponding format/codec is opened. Note that you only need to call <a href="functions.html#av_register_all">av_register_all</a>() once, so we do it here in main(). If you like, it's possible to register only certain individual file formats and codecs, but there's usually no reason why you would have to do that.
+</p>
+<p>
+Now we can actually open the file:
+<pre>
+<a href="data.html#AVFormatContext">AVFormatContext</a> *pFormatCtx = NULL;
+
+// Open video file
+if(<a href="functions.html#avformat_open_input">avformat_open_input</a>(&pFormatCtx, argv[1], NULL, 0, NULL)!=0)
+  return -1; // Couldn't open file
+</pre>
+We get our filename from the first argument. This function reads the file header and stores information about the file format in the <a href="data.html#AVFormatContext">AVFormatContext</a> structure we have given it. The last three arguments are used to specify the file format, buffer size, and format options, but by setting this to NULL or 0, libavformat will auto-detect these.
+<p>This function only looks at the header, so next we need to check out the stream information in the file.:
+<pre>
+// Retrieve stream information
+if(<a href="functions.html#avformat_find_stream_info">avformat_find_stream_info</a>(pFormatCtx, NULL)<0)
+  return -1; // Couldn't find stream information
+</pre>
+This function populates <tt>pFormatCtx-&gt;streams</tt> with the proper information. We introduce a handy debugging function to show us what's inside:
+<pre>
+// Dump information about file onto standard error
+av_dump_format(pFormatCtx, 0, argv[1], 0);
+</pre>
+Now <tt>pFormatCtx-&gt;streams</tt> is just an array of pointers, of size <tt>pFormatCtx-&gt;nb_streams</tt>, so let's walk through it until we find a video stream.
+<pre>
+int i;
+<a href="data.html#AVCodecContext">AVCodecContext</a> *pCodecCtxOrig = NULL;
+<a href="data.html#AVCodecContext">AVCodecContext</a> *pCodecCtx = NULL;
+
+// Find the first video stream
+videoStream=-1;
+for(i=0; i&lt;pFormatCtx-&gt;nb_streams; i++)
+  if(pFormatCtx-&gt;streams[i]-&gt;codec-&gt;codec_type==AVMEDIA_TYPE_VIDEO) {
+    videoStream=i;
+    break;
+  }
+if(videoStream==-1)
+  return -1; // Didn't find a video stream
+
+// Get a pointer to the codec context for the video stream
+pCodecCtx=pFormatCtx-&gt;streams[videoStream]-&gt;codec;
+</pre>
+The stream's information about the codec is in what we call the "codec context." This contains all the information about the codec that the stream is using, and now we have a pointer to it. But we still have to find the actual codec and open it:
+<pre>
+AVCodec *pCodec = NULL;
+
+// Find the decoder for the video stream
+pCodec=<a href="functions.html#avcodec_find_decoder">avcodec_find_decoder</a>(pCodecCtx-&gt;codec_id);
+if(pCodec==NULL) {
+  fprintf(stderr, "Unsupported codec!\n");
+  return -1; // Codec not found
+}
+// Copy context
+pCodecCtx = <a href="functions.html#avcodec_alloc_context3">avcodec_alloc_context3</a>(pCodec);
+if(<a href="functions.html#avcodec_copy_context">avcodec_copy_context</a>(pCodecCtx, pCodecCtxOrig) != 0) {
+  fprintf(stderr, "Couldn't copy codec context");
+  return -1; // Error copying codec context
+}
+// Open codec
+if(<a href="functions.html#avcodec_open2">avcodec_open2</a>(pCodecCtx, pCodec)<0)
+  return -1; // Could not open codec
+</pre>
+Note that we must not use the AVCodecContext from the video stream directly! So we have to use <a href="functions.html">avcodec_copy_context</a>() to copy the context to a new location (after allocating memory for it, of course).
+</p>
+<h3>Storing the Data</h3>
+<p>Now we need a place to actually store the frame:
+<pre>
+<a href="data.html#AVFrame">AVFrame</a> *pFrame = NULL;
+
+// Allocate video frame
+pFrame=<a href="functions.html#av_frame_alloc">av_frame_alloc</a>();
+</pre>
+Since we're planning to output PPM files, which are stored in 24-bit RGB, we're going to have to convert our frame from its native format to RGB. ffmpeg will do these conversions for us. For most projects (including ours) we're going to want to convert our initial frame to a specific format. Let's allocate a frame for the converted frame now.
+<pre>
+// Allocate an <a href="data.html#AVFrame">AVFrame</a> structure
+pFrameRGB=<a href="functions.html#av_frame_alloc">av_frame_alloc</a>();
+if(pFrameRGB==NULL)
+  return -1;
+</pre>
+Even though we've allocated the frame, we still need a place to put the raw data when we convert it. We use <tt><a href="functions.html#avpicture_get_size">avpicture_get_size</a></tt> to get the size we need, and allocate the space manually:
+<pre>
+uint8_t *buffer = NULL;
+int numBytes;
+// Determine required buffer size and allocate buffer
+numBytes=<a href="functions.html#avpicture_get_size">avpicture_get_size</a>(PIX_FMT_RGB24, pCodecCtx-&gt;width,
+                            pCodecCtx-&gt;height);
+buffer=(uint8_t *)<a href="functions.html#av_malloc">av_malloc</a>(numBytes*sizeof(uint8_t));
+</pre>
+<tt><a href="functions.html#av_malloc">av_malloc</a></tt> is ffmpeg's malloc that is just a simple wrapper around malloc that makes sure the memory addresses are aligned and such. It will <i>not</i> protect you from memory leaks, double freeing, or other malloc problems.
+</p>
+<p>
+Now we use <a href="functions.html#avpicture_fill">avpicture_fill</a> to associate the frame with our newly allocated buffer. About the <a href="data.html#AVPicture">AVPicture</a> cast: the AVPicture struct is a subset of the <a href="data.html#AVFrame">AVFrame</a> struct - the beginning of the AVFrame struct is identical to the AVPicture struct.
+<pre>
+// Assign appropriate parts of buffer to image planes in pFrameRGB
+// Note that pFrameRGB is an <a href="data.html#AVFrame">AVFrame</a>, but AVFrame is a superset
+// of <a href="data.html#AVPicture">AVPicture</a>
+<a href="functions.html#avpicture_fill">avpicture_fill</a>((<a href="data.html#AVPicture">AVPicture</a> *)pFrameRGB, buffer, PIX_FMT_RGB24,
+                pCodecCtx-&gt;width, pCodecCtx-&gt;height);
+</pre>
+Finally! Now we're ready to read from the stream!
+</p>
+<h3>Reading the Data</h3>
+<p>
+What we're going to do is read through the entire video stream by reading in the packet, decoding it into our frame, and once our frame is complete, we will convert and save it.
+<pre>
+struct SwsContext *sws_ctx = NULL;
+int frameFinished;
+<a href="data.html#AVPacket">AVPacket</a> packet;
+// initialize SWS context for software scaling
+sws_ctx = <a href="functions.html#sws_getContext">sws_getContext</a>(pCodecCtx->width,
+    pCodecCtx->height,
+    pCodecCtx->pix_fmt,
+    pCodecCtx->width,
+    pCodecCtx->height,
+    PIX_FMT_RGB24,
+    SWS_BILINEAR,
+    NULL,
+    NULL,
+    NULL
+    );
+
+i=0;
+while(<a href="functions.html#av_read_frame">av_read_frame</a>(pFormatCtx, &packet)>=0) {
+  // Is this a packet from the video stream?
+  if(packet.stream_index==videoStream) {
+	// Decode video frame
+    <a href="functions.html#avcodec_decode_video2">avcodec_decode_video2</a>(pCodecCtx, pFrame, &frameFinished, &packet);
+    
+    // Did we get a video frame?
+    if(frameFinished) {
+    // Convert the image from its native format to RGB
+        <a href="functions.html#sws_scale">sws_scale</a>(sws_ctx, (uint8_t const * const *)pFrame-&gt;data,
+		  pFrame-&gt;linesize, 0, pCodecCtx-&gt;height,
+		  pFrameRGB-&gt;data, pFrameRGB-&gt;linesize);
+	
+        // Save the frame to disk
+        if(++i&lt;=5)
+          SaveFrame(pFrameRGB, pCodecCtx-&gt;width, 
+                    pCodecCtx-&gt;height, i);
+    }
+  }
+    
+  // Free the packet that was allocated by <a href="functions.html#av_read_frame">av_read_frame</a>
+  <a href="functions.html#av_free_packet">av_free_packet</a>(&packet);
+}
+</pre>
+<span class="sidenote">
+<b>A note on packets</b>
+<p>
+Technically a packet can contain partial frames or other bits of data, but ffmpeg's parser ensures that the packets we get contain either complete or multiple frames.
+</p>
+</span>
+The process, again, is simple: <tt><a href="functions.html#av_read_frame">av_read_frame</a>()</tt> reads in a packet and stores it in the <tt><a href="data.html#AVPacket">AVPacket</a></tt> struct. Note that we've only allocated the packet structure - ffmpeg allocates the internal data for us, which is pointed to by <tt>packet.data</tt>. This is freed by the <tt><a href="functions.html#av_free_packet">av_free_packet</a>()</tt> later. <tt><a href="functions.html#avcodec_decode_video">avcodec_decode_video</a>()</tt> converts the packet to a frame for us. However, we might not have all the information we need for a frame after decoding a packet, so <tt>avcodec_decode_video()</tt> sets frameFinished for us when we have the next frame. Finally, we use <tt><a href="functions.html#sws_scale">sws_scale</a>()</tt> to convert from the native format (<tt>pCodecCtx-&gt;pix_fmt</tt>) to RGB. Remember that you can cast an <a href="data.html#AVFrame">AVFrame</a> pointer to an <a href="data.html#AVPicture">AVPicture</a> pointer.  Finally, we pass the frame and height and width information to our SaveFrame function.
+</p>
+<p>
+Now all we need to do is make the SaveFrame function to write the RGB information to a file in PPM format. We're going to be kind of sketchy on the PPM format itself; trust us, it works.
+<pre>
+void SaveFrame(<a href="data.html#AVFrame">AVFrame</a> *pFrame, int width, int height, int iFrame) {
+  FILE *pFile;
+  char szFilename[32];
+  int  y;
+  
+  // Open file
+  sprintf(szFilename, "frame%d.ppm", iFrame);
+  pFile=fopen(szFilename, "wb");
+  if(pFile==NULL)
+    return;
+  
+  // Write header
+  fprintf(pFile, "P6\n%d %d\n255\n", width, height);
+  
+  // Write pixel data
+  for(y=0; y&lt;height; y++)
+    fwrite(pFrame-&gt;data[0]+y*pFrame-&gt;linesize[0], 1, width*3, pFile);
+  
+  // Close file
+  fclose(pFile);
+}
+</pre>
+We do a bit of standard file opening, etc., and then write the RGB data. We write the file one line at a time. A PPM file is simply a file that has RGB information laid out in a long string. If you know HTML colors, it would be like laying out the color of each pixel end to end like <tt>#ff0000#ff0000</tt>.... would be a red screen. (It's stored in binary and without the separator, but you get the idea.) The header indicated how wide and tall the image is, and the max size of the RGB values.
+</p>
+<p>
+Now, going back to our main() function. Once we're done reading from the video stream, we just have to clean everything up:
+<pre>
+// Free the RGB image
+<a href="functions.html#av_free">av_free</a>(buffer);
+<a href="functions.html#av_free">av_free</a>(pFrameRGB);
+
+// Free the YUV frame
+<a href="functions.html#av_free">av_free</a>(pFrame);
+
+// Close the codecs
+avcodec_close(pCodecCtx);
+avcodec_close(pCodecCtxOrig);
+
+// Close the video file
+<a href="functions.html#avformat_close_input">avformat_close_input</a>(&pFormatCtx);
+
+return 0;
+</pre>
+You'll notice we use <a href="functions.html#av_free">av_free</a> for the memory we allocated with avcode_alloc_frame and <a href="functions.html#av_malloc">av_malloc</a>.
+</p>
+<p>
+That's it for the code! Now, if you're on Linux or a similar platform, you'll run:
+<pre>
+gcc -o tutorial01 tutorial01.c -lavutil -lavformat -lavcodec -lz -lavutil -lm
+</pre>
+If you have an older version of ffmpeg, you may need to drop -lavutil:
+<pre>
+gcc -o tutorial01 tutorial01.c -lavformat -lavcodec -lz -lm
+</pre>
+Most image programs should be able to open PPM files. Test it on some movie files.
+</p>
+<p>
+
+<em><b>>></b> <a href="tutorial02.html">Tutorial 2: Outputting to the Screen</a></em>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+<a href="http://www.dranger.com/">Back to dranger.com</a>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/tutorial01.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:24 GMT -->
+</html>

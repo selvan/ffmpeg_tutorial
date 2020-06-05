@@ -1,0 +1,104 @@
+body {
+	margin-left:auto;
+	margin-right:auto;
+	width:45%;
+	font-size: 80%;
+	font-family: arial,sans-serif;
+	line-height: 1.5;
+}
+pre {
+	font-family: fixed;
+}	
+.center {
+	text-align:center;
+}
+div.nav {
+	font-weight:bold;
+	font-size: 125%;
+	border: #ccc;
+	background-color: #cdf;
+	padding: 0.35em 0.5em;
+	margin: 0.5em 0em;
+}
+div.footer {
+
+}
+.left {
+	float:left;
+}
+.right {
+	float:right;
+}
+.spacer {
+	clear:both;
+}
+pre {
+	font-size:100%;
+	font-family:"Courier New",courier,monospace;
+	border:1px dotted #00c;
+	padding: 0.5em;
+	width:50em;
+}
+tt {
+	font-family:"Courier New",courier,monospace;
+}
+div.footer {
+	margin: 2em 0em;
+	padding: 0.25em;
+	border: 1px solid #ddd;
+}
+div.links {
+	margin: 1em;
+}
+table {
+	font: inherit;
+}
+em {
+	font-size: 125%;
+	font-style: normal;
+}
+span.codelink {
+	border: #ddd 2px dashed;
+	padding: 0.5em;
+}
+span.crossout {
+	text-decoration: line-through;
+}
+dl.data {
+	margin: 1em;
+	padding: 0.5em;
+}
+dl.data dt {
+	border: #ddd 1px solid;
+	padding: 0.3em;
+	margin-bottom: 1em;
+	font-weight: bold;
+}
+dl.function {
+	margin: 1em;
+	padding: 0.5em;
+}
+dl.function dt {
+	border: #ddd 1px solid;
+	padding: 0.3em;
+	margin-bottom: 1em;
+}
+dl.function dt b {
+	font-weight: bold;
+}
+ul.functions {
+	list-style: none;
+}
+span.sidenote {
+	position:absolute;
+	left:75%;
+	margin:1em 2em;
+	border: 1px #00c dotted;
+	padding:0.5em;
+}
+span.sidenote b {
+	color: #005;
+}
+span.fineprint {
+	font-size:75%;
+}

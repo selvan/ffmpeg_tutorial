@@ -1,0 +1,67 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+<!-- Mirrored from dranger.com/ffmpeg/weightedmean.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:45 GMT -->
+<head>
+<title>ffmpeg tutorial</title>
+<link href="ffmpeg.css" rel="stylesheet" type="text/css">
+</title>
+</head>
+<body>
+<h2 class="center">An ffmpeg and SDL Tutorial</h2>
+<div><a href="weightedmean_print.html">Printable version</a>
+<a href="weightedmean.txt">Text version</a></div>
+
+<p>
+The function we are using is a weighted mean using a geometric series as its weights. A <a href="http://en.wikipedia.org/wiki/Weighted_mean">weighted mean</a> is defined like this:
+<pre>
+w_0*x_0 + w_1*x_1 + ... + w_n*x_n
+---------------------------------
+     w_0 + w_1 + ... + w_n
+</pre>
+If you substitute 1 in for each <tt>w_n</tt>, you get your normal everyday arithmetic mean (a.k.a. an <i>average</i>). 
+</p>
+<p>
+Our function is basically a repetition of:
+<pre>
+total = d_x + c*avg;
+</pre>
+However, you can also look at it like this:
+<pre>
+total = c^n*d_0 + c^(n-1)*d_1 + ... + c*d_(n-1) + d_n
+</pre>
+in which case, this is just the top part of a weighted mean with <tt>c^n, c^(n-1)...</tt> as the weights. That means the bottom half is <tt>c^n+c^(n-1)...</tt>, which, as you may have guessed, is a simple geometric sum which works out to <tt>1/(1-c)</tt> as n approaches infinity.
+</p>
+<p>
+So, by approximation, the weighted mean of our sequence of diffs is simply:
+<pre>
+ total     
+-------  = total * (1-c)
+   1        
+ -----
+ (1-c)
+</pre>
+So when we get the final total and want to know the average, we just multiply it by 1-c and get the answer! There is probably a name for this way of taking the mean of a sequence, but I'm pretty ignorant and I don't know it. If you know it, please email me. 
+</p>
+<hr>
+<div class="links">
+<a href="functions.html">Function Reference</a><br>
+<a href="data.html">Data Reference</a>
+</div>
+<div class="footer">
+<table>
+<tr><th>email:</th> <td>dranger at gmail dot com</td></tr>
+</table>
+</div>
+<span class="fineprint">This work is licensed under the Creative Commons Attribution-Share Alike 2.5 License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/2.5/ or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA.
+<br />
+<br />
+Code examples are based off of FFplay, Copyright (c) 2003 Fabrice Bellard, and a tutorial by Martin Bohme.
+</span>
+</body>
+
+<!-- Mirrored from dranger.com/ffmpeg/weightedmean.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 05 Jun 2020 09:18:46 GMT -->
+</html>
+
+
